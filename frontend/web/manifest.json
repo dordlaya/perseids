@@ -1,11 +1,11 @@
 {
-    "name": "Perseids",
-    "short_name": "Perseids",
+    "name": "perseids",
+    "short_name": "perseids",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#050C1A",
     "theme_color": "#050C1A",
-    "description": "A live, dynamic deep space multiplayer map.",
+    "description": "A live, dynamic deep space perseids multiplayer map.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

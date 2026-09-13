@@ -152,7 +152,7 @@ func main() {
 	// ---- Config ----
 	wd, _ := os.Getwd()
 
-	dataDir    := envOr("DATA_DIR", filepath.Join(wd, "data"))
+	dataDir := envOr("DATA_DIR", filepath.Join(wd, "data"))
 	rosterPath := filepath.Join(dataDir, "roster.json")
 
 	defaultBind := "127.0.0.1"
@@ -163,9 +163,9 @@ func main() {
 	port := envOr("PORT", "5173")
 
 	storeBackend := strings.TrimSpace(strings.ToLower(envOr("STORE_BACKEND", "json")))
-	valkeyURL    := envOr("VALKEY_URL", "redis://localhost:6379")
+	valkeyURL := envOr("VALKEY_URL", "redis://localhost:6379")
 	valkeyPrefix := envOr("VALKEY_PREFIX", "spacemap")
-	staticDir    := envOr("STATIC_DIR", wd)
+	staticDir := envOr("STATIC_DIR", wd)
 
 	// ---- Store ----
 	store, err := makeStore(storeBackend, valkeyURL, valkeyPrefix, rosterPath)
@@ -187,15 +187,15 @@ func main() {
 
 	// ---- Routes (Go 1.22 method+path patterns) ----
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /api/health",    handleHealth(sim, store))
-	mux.HandleFunc("GET /api/state",     handleState(sim))
+	mux.HandleFunc("GET /api/health", handleHealth(sim, store))
+	mux.HandleFunc("GET /api/state", handleState(sim))
 	mux.HandleFunc("POST /api/register", handleRegister(sim, store))
-	mux.HandleFunc("POST /api/login",    handleLogin(sim, store))
-	mux.HandleFunc("POST /api/status",   handleStatus(sim, store))
-	mux.HandleFunc("POST /api/boost",    handleBoost(sim))
-	mux.HandleFunc("POST /api/jam",      handleJam(sim))
-	mux.HandleFunc("POST /api/reset",    handleReset(sim, store))
-	mux.HandleFunc("GET /ws",            handleWebSocket(sim, hub))
+	mux.HandleFunc("POST /api/login", handleLogin(sim, store))
+	mux.HandleFunc("POST /api/status", handleStatus(sim, store))
+	mux.HandleFunc("POST /api/boost", handleBoost(sim))
+	mux.HandleFunc("POST /api/jam", handleJam(sim))
+	mux.HandleFunc("POST /api/reset", handleReset(sim, store))
+	mux.HandleFunc("GET /ws", handleWebSocket(sim, hub))
 	// Static files are last; /api and /ws take precedence automatically.
 	mux.Handle("/", http.FileServer(http.Dir(staticDir)))
 
@@ -213,7 +213,7 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	go simLoop(ctx, sim, hub, store)
 
-	fmt.Printf("space-map (Go/WS) http://%s  (tick %dHz, store: %s)\n",
+	fmt.Printf("perseids (Go/WS) http://%s  (tick %dHz, store: %s)\n",
 		addr, tickHz, store.Describe())
 
 	// ---- Graceful shutdown ----

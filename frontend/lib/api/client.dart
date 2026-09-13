@@ -5,17 +5,33 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 import '../models/models.dart';
 
 class ApiClient {
-  // Derive URLs from the page origin so this works on any host
-  // (localhost in dev, the Render service URL in production).
+  // In production, Flutter web is served by the Go server itself, so
+  // Uri.base already points at the right host:port.
+  //
+  // In development, `flutter run -d chrome` uses its own dev server on a
+  // random port, while Go listens on a fixed port (default 5173).
+  // Pass `--dart-define=BACKEND_PORT=5173` to override the port at compile
+  // time so the client can reach the backend.
+  //
+  // Example dev command:
+  //   flutter run -d chrome --dart-define=BACKEND_PORT=5173
+  static const String _backendPort =
+      String.fromEnvironment('BACKEND_PORT', defaultValue: '');
+
+  static String get _effectivePort {
+    if (_backendPort.isNotEmpty) return _backendPort;
+    return Uri.base.port.toString();
+  }
+
   static String get baseUrl {
     final origin = Uri.base;
-    return '${origin.scheme}://${origin.host}:${origin.port}/api';
+    return '${origin.scheme}://${origin.host}:$_effectivePort/api';
   }
 
   static String get wsUrl {
     final origin = Uri.base;
     final wsScheme = origin.scheme == 'https' ? 'wss' : 'ws';
-    return '$wsScheme://${origin.host}:${origin.port}/ws';
+    return '$wsScheme://${origin.host}:$_effectivePort/ws';
   }
 
   WebSocketChannel? _channel;

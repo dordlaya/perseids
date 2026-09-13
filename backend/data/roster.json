@@ -1,0 +1,17 @@
+{
+  "rev": 1,
+  "users": [
+    {
+      "id": 1,
+      "name": "d1",
+      "fx": 0.3477255145136441,
+      "fy": 0.42938013497115435,
+      "r": 10,
+      "hits": 0,
+      "createdAt": 1789319854075,
+      "loggedIn": true,
+      "email": "d@d.com",
+      "pw": "pbkdf2_sha256$120000$7d7c897d7d2b9d56e3a8b5336b3adf18$c88a5629cf79b7ad927adb3a0de3d13cf34909bd127efe1cd4ae412c4dc3bca0"
+    }
+  ]
+}
