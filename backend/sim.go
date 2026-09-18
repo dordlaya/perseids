@@ -681,6 +681,9 @@ func (s *Sim) Jam(attackerID, targetID int) JamResult {
 	if target == nil {
 		return JamResult{Error: "not_found"}
 	}
+	if !target.LoggedIn {
+		return JamResult{Error: "target_offline"}
+	}
 	if attacker == nil || !attacker.LoggedIn {
 		return JamResult{Error: "offline"}
 	}

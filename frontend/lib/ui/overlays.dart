@@ -632,7 +632,7 @@ class StarInfoOverlay extends StatelessWidget {
                       side: const BorderSide(color: spaceDanger),
                       minimumSize: const Size.fromHeight(38),
                     ),
-                    onPressed: arriving
+                    onPressed: !u.loggedIn || arriving
                         ? null
                         : () => state.api.jam(state.sessionUserId!, u.id),
                     child: const Text('Jam −25%'),
