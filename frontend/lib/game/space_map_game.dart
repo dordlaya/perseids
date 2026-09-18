@@ -101,14 +101,13 @@ class SpaceMapGame extends FlameGame with ScaleDetector, ScrollDetector {
   late double _startZoom;
 
   double get dynamicMinZoom {
-    if (state.world.w == 0 || state.world.h == 0) return 0.4;
-    // Add a small 100px margin to the bounds on each side
-    final wMargin = state.world.w + 200; 
-    final hMargin = state.world.h + 200;
-    
-    // The required zoom to fit the game canvas within the restricted world area.
-    // Taking the max ensures we zoom in enough so that neither dimension sees black.
-    return max(size.x / wMargin, size.y / hMargin).clamp(0.05, maxZoomLimit);
+    if (state.world.w == 0 || state.world.h == 0) return 0.15;
+    // Calculate the zoom needed to fit the entire world on screen with a small padding.
+    // Take the smaller of the two axes so the full map fits.
+    final fitW = size.x / (state.world.w + 100);
+    final fitH = size.y / (state.world.h + 100);
+    // Allow zooming out to fit the whole map, but no further.
+    return min(fitW, fitH).clamp(0.05, maxZoomLimit);
   }
 
   @override
