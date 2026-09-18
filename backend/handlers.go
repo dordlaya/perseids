@@ -13,10 +13,14 @@ package main
 
 import (
 	"context"
+	"crypto/subtle"
 	"encoding/json"
 	"log"
+	"net"
 	"net/http"
+	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -47,26 +51,30 @@ type LoginReq struct {
 	Password   string `json:"password"`
 }
 
+// authResponse wraps a register/login result with the session token the
+// client must send back as "Authorization: Bearer <token>" on every
+// subsequent request.
+type authResponse struct {
+	OK    bool   `json:"ok"`
+	Error string `json:"error,omitempty"`
+	ID    int    `json:"id,omitempty"`
+	Name  string `json:"name,omitempty"`
+	Token string `json:"token,omitempty"`
+}
+
+// None of the request types below carry a user ID. The acting user is
+// always the one resolved from the bearer token by requireAuth — never a
+// value the client supplies — which is what stops one player from
+// puppeting another player's probe.
 type StatusReq struct {
-	ID    int  `json:"id"`
 	Value bool `json:"value"`
 }
 
-type HeartbeatReq struct {
-	ID int `json:"id"`
-}
-
-type BoostReq struct {
-	ID int `json:"id"`
-}
-
 type JamReq struct {
-	Attacker int `json:"attacker"`
-	Target   int `json:"target"`
+	Target int `json:"target"`
 }
 
 type MoveReq struct {
-	ID     int `json:"id"`
 	Sector int `json:"sector"`
 }
 
@@ -97,6 +105,123 @@ func noCacheMiddleware(next http.Handler) http.Handler {
 		if p == "/" || strings.HasSuffix(p, ".html") ||
 			strings.HasSuffix(p, ".js") || strings.HasSuffix(p, ".css") {
 			w.Header().Set("Cache-Control", "no-cache")
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// ---------------------------------------------------------------------------
+// Auth middleware
+// ---------------------------------------------------------------------------
+
+type ctxKey int
+
+const userIDKey ctxKey = 0
+
+// requireAuth resolves the bearer token to a user ID and stores it on the
+// request context for the handler to read via userIDFromContext. Requests
+// with a missing, unknown, or expired token never reach the handler.
+func requireAuth(sessions *SessionStore) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			uid, ok := sessions.Lookup(bearerToken(r))
+			if !ok {
+				writeJSON(w, http.StatusUnauthorized,
+					map[string]any{"ok": false, "error": "unauthorized"})
+				return
+			}
+			ctx := context.WithValue(r.Context(), userIDKey, uid)
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	}
+}
+
+// userIDFromContext reads the user ID that requireAuth resolved. Only call
+// this from handlers mounted behind requireAuth.
+func userIDFromContext(r *http.Request) int {
+	uid, _ := r.Context().Value(userIDKey).(int)
+	return uid
+}
+
+// requireAdmin protects operator-only endpoints (currently just /api/reset)
+// behind a shared secret set via the ADMIN_TOKEN env var, sent the same way
+// as a session token: "Authorization: Bearer <ADMIN_TOKEN>". If ADMIN_TOKEN
+// isn't set, the endpoint is disabled rather than left open — a safer
+// default for a small game server that's easy to deploy without configuring.
+func requireAdmin(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		want := os.Getenv("ADMIN_TOKEN")
+		if want == "" {
+			writeJSON(w, http.StatusForbidden, map[string]any{"ok": false, "error": "disabled"})
+			return
+		}
+		got := bearerToken(r)
+		if subtle.ConstantTimeCompare([]byte(got), []byte(want)) != 1 {
+			writeJSON(w, http.StatusUnauthorized, map[string]any{"ok": false, "error": "unauthorized"})
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// ---------------------------------------------------------------------------
+// Login/register rate limiting
+// ---------------------------------------------------------------------------
+
+// rateLimiter is a minimal fixed-window limiter keyed by client IP: at most
+// `max` calls per `window`. Enough to blunt casual credential-stuffing and
+// account-enumeration against /api/login and /api/register without pulling
+// in a dependency or needing shared state across instances (this server is
+// single-instance in-memory already, so that's not a new constraint).
+type rateLimiter struct {
+	mu       sync.Mutex
+	max      int
+	window   time.Duration
+	attempts map[string][]time.Time
+}
+
+func newRateLimiter(max int, window time.Duration) *rateLimiter {
+	return &rateLimiter{max: max, window: window, attempts: make(map[string][]time.Time)}
+}
+
+func (rl *rateLimiter) allow(key string) bool {
+	now := time.Now()
+	cutoff := now.Add(-rl.window)
+	rl.mu.Lock()
+	defer rl.mu.Unlock()
+	var kept []time.Time
+	for _, t := range rl.attempts[key] {
+		if t.After(cutoff) {
+			kept = append(kept, t)
+		}
+	}
+	if len(kept) >= rl.max {
+		rl.attempts[key] = kept
+		return false
+	}
+	rl.attempts[key] = append(kept, now)
+	return true
+}
+
+// clientIP prefers the first X-Forwarded-For hop (set by most PaaS proxies,
+// including Render) and falls back to the raw remote address.
+func clientIP(r *http.Request) string {
+	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+		return strings.TrimSpace(strings.SplitN(xff, ",", 2)[0])
+	}
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return r.RemoteAddr
+	}
+	return host
+}
+
+func rateLimitMiddleware(rl *rateLimiter, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !rl.allow(clientIP(r)) {
+			writeJSON(w, http.StatusTooManyRequests,
+				map[string]any{"ok": false, "error": "rate_limited"})
+			return
 		}
 		next.ServeHTTP(w, r)
 	})
@@ -155,7 +280,7 @@ func handleSectors(sim *Sim) http.HandlerFunc {
 	}
 }
 
-func handleRegister(sim *Sim, store Store) http.HandlerFunc {
+func handleRegister(sim *Sim, store Store, sessions *SessionStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req RegisterReq
 		if !decodeBody(w, r, &req) {
@@ -164,18 +289,23 @@ func handleRegister(sim *Sim, store Store) http.HandlerFunc {
 		sim.mu.Lock()
 		res := sim.Register(req.Name, req.Email, req.Password)
 		sim.mu.Unlock()
-		if res.OK {
-			persistNow(sim, store)
-		}
-		status := http.StatusOK
 		if !res.OK {
-			status = http.StatusBadRequest
+			writeJSON(w, http.StatusBadRequest, authResponse{Error: res.Error})
+			return
 		}
-		writeJSON(w, status, res)
+		persistNow(sim, store)
+		token, err := sessions.Create(res.ID)
+		if err != nil {
+			log.Printf("session create: %v", err)
+			writeJSON(w, http.StatusInternalServerError, authResponse{Error: "internal"})
+			return
+		}
+		writeJSON(w, http.StatusOK,
+			authResponse{OK: true, ID: res.ID, Name: res.Name, Token: token})
 	}
 }
 
-func handleLogin(sim *Sim, store Store) http.HandlerFunc {
+func handleLogin(sim *Sim, store Store, sessions *SessionStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req LoginReq
 		if !decodeBody(w, r, &req) {
@@ -184,25 +314,49 @@ func handleLogin(sim *Sim, store Store) http.HandlerFunc {
 		sim.mu.Lock()
 		res := sim.Authenticate(req.Identifier, req.Password)
 		sim.mu.Unlock()
-		if res.OK {
-			persistNow(sim, store)
-		}
-		status := http.StatusOK
 		if !res.OK {
-			status = http.StatusUnauthorized
+			writeJSON(w, http.StatusUnauthorized, authResponse{Error: res.Error})
+			return
 		}
-		writeJSON(w, status, res)
+		persistNow(sim, store)
+		token, err := sessions.Create(res.ID)
+		if err != nil {
+			log.Printf("session create: %v", err)
+			writeJSON(w, http.StatusInternalServerError, authResponse{Error: "internal"})
+			return
+		}
+		writeJSON(w, http.StatusOK,
+			authResponse{OK: true, ID: res.ID, Name: res.Name, Token: token})
 	}
 }
 
+// handleLogout revokes the caller's session token and marks them offline.
+// Mounted behind requireAuth, so uid/token are already verified.
+func handleLogout(sim *Sim, store Store, sessions *SessionStore) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		uid := userIDFromContext(r)
+		sessions.Delete(bearerToken(r))
+		sim.mu.Lock()
+		res := sim.SetLoggedIn(uid, false)
+		sim.mu.Unlock()
+		if res.OK {
+			persistNow(sim, store)
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+	}
+}
+
+// handleStatus toggles the CALLER's own online/offline flag. Mounted behind
+// requireAuth; the target user is always the token's owner.
 func handleStatus(sim *Sim, store Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req StatusReq
 		if !decodeBody(w, r, &req) {
 			return
 		}
+		uid := userIDFromContext(r)
 		sim.mu.Lock()
-		res := sim.SetLoggedIn(req.ID, req.Value)
+		res := sim.SetLoggedIn(uid, req.Value)
 		sim.mu.Unlock()
 		if res.OK {
 			persistNow(sim, store)
@@ -217,12 +371,9 @@ func handleStatus(sim *Sim, store Store) http.HandlerFunc {
 
 func handleHeartbeat(sim *Sim) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var req HeartbeatReq
-		if !decodeBody(w, r, &req) {
-			return
-		}
+		uid := userIDFromContext(r)
 		sim.mu.Lock()
-		res := sim.Heartbeat(req.ID)
+		res := sim.Heartbeat(uid)
 		sim.mu.Unlock()
 		status := http.StatusOK
 		if !res.OK {
@@ -237,12 +388,9 @@ func handleHeartbeat(sim *Sim) http.HandlerFunc {
 
 func handleBoost(sim *Sim) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var req BoostReq
-		if !decodeBody(w, r, &req) {
-			return
-		}
+		uid := userIDFromContext(r)
 		sim.mu.Lock()
-		res := sim.ActivateBoost(req.ID)
+		res := sim.ActivateBoost(uid)
 		sim.mu.Unlock()
 		status := http.StatusOK
 		if !res.OK {
@@ -252,15 +400,17 @@ func handleBoost(sim *Sim) http.HandlerFunc {
 	}
 }
 
+// handleJam: the attacker is always the authenticated caller, never a
+// client-supplied field — only the target is provided by the client.
 func handleJam(sim *Sim) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req JamReq
 		if !decodeBody(w, r, &req) {
 			return
 		}
-
+		attacker := userIDFromContext(r)
 		sim.mu.Lock()
-		res := sim.Jam(req.Attacker, req.Target)
+		res := sim.Jam(attacker, req.Target)
 		sim.mu.Unlock()
 		status := http.StatusOK
 		if !res.OK {
@@ -276,8 +426,9 @@ func handleMove(sim *Sim, store Store) http.HandlerFunc {
 		if !decodeBody(w, r, &req) {
 			return
 		}
+		uid := userIDFromContext(r)
 		sim.mu.Lock()
-		res := sim.MoveUser(req.ID, req.Sector)
+		res := sim.MoveUser(uid, req.Sector)
 		sim.mu.Unlock()
 		if res.OK {
 			persistNow(sim, store)

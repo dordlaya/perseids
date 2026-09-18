@@ -50,7 +50,16 @@ class AppState extends ChangeNotifier {
 
   AppState() {
     _loadSession();
-    
+
+    // If a session token is rejected (expired, or revoked from another
+    // tab), drop back to a clean logged-out state instead of every
+    // subsequent action silently failing.
+    api.onUnauthorized = () {
+      clearSession();
+      showLoginModal = true;
+      notifyListeners();
+    };
+
     api.connectionStream.listen((connected) {
       isConnected = connected;
       notifyListeners();
@@ -68,19 +77,33 @@ class AppState extends ChangeNotifier {
         final session = jsonDecode(sessionStr);
         sessionUserId = session['id'];
         sessionUserName = session['name'];
+        final token = session['token'];
+        if (token is String && token.isNotEmpty) {
+          api.authToken = token;
+        }
       }
     } catch (_) {}
-    if (sessionUserId == null) {
+    // No token means we can't authenticate any request even if an id/name
+    // happen to be cached, so treat that as logged out.
+    if (sessionUserId == null || api.authToken == null) {
+      clearSession();
       showLoginModal = true;
     } else {
       _startHeartbeat();
     }
   }
 
-  void setSession(int id, String name) {
+  /// Called after a successful register/login. [token] is the bearer token
+  /// the server issued; api.authToken is already set by ApiClient at that
+  /// point, but we persist it here so it survives a page refresh.
+  void setSession(int id, String name, String token) {
     sessionUserId = id;
     sessionUserName = name;
-    web.window.localStorage.setItem('spacemap.session', jsonEncode({'id': id, 'name': name}));
+    api.authToken = token;
+    web.window.localStorage.setItem(
+      'spacemap.session',
+      jsonEncode({'id': id, 'name': name, 'token': token}),
+    );
     _startHeartbeat();
     notifyListeners();
   }
@@ -90,21 +113,26 @@ class AppState extends ChangeNotifier {
     _heartbeatTimer = null;
     sessionUserId = null;
     sessionUserName = null;
+    api.clearToken();
     web.window.localStorage.removeItem('spacemap.session');
     notifyListeners();
   }
 
+  /// Logs out: revokes the token server-side, then clears local state.
+  Future<void> logout() async {
+    await api.logout();
+    clearSession();
+  }
+
   void _startHeartbeat() {
-    final id = sessionUserId;
-    if (id == null) return;
+    if (sessionUserId == null) return;
     _heartbeatTimer?.cancel();
     _heartbeatTimer = Timer.periodic(const Duration(seconds: 30), (_) {
-      final currentId = sessionUserId;
-      if (currentId != null && isConnected) {
-        api.heartbeat(currentId);
+      if (isConnected) {
+        api.heartbeat();
       }
     });
-    api.heartbeat(id);
+    api.heartbeat();
   }
 
   void _applySnapshot(Snapshot snap) {

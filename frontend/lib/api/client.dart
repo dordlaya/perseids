@@ -45,6 +45,36 @@ class ApiClient {
   Timer? _reconnectTimer;
   int _reconnectDelay = 500;
 
+  /// Bearer token returned by /api/register or /api/login. Every mutating
+  /// call sends it as "Authorization: Bearer <token>"; the server resolves
+  /// the acting user from this, never from an id in the request body.
+  String? authToken;
+
+  /// Fired when an authenticated call comes back 401 (token missing,
+  /// unknown, or expired — sessions expire after 24h of inactivity).
+  /// AppState wires this to clearSession() so the UI drops back to the
+  /// login screen instead of silently failing every subsequent action.
+  void Function()? onUnauthorized;
+
+  Map<String, String> get _authHeaders => {
+        'Content-Type': 'application/json',
+        if (authToken != null) 'Authorization': 'Bearer $authToken',
+      };
+
+  /// POSTs to an authenticated endpoint and handles a 401 uniformly.
+  Future<http.Response> _postAuthed(String path, {Object? body}) async {
+    final res = await http.post(
+      Uri.parse('$baseUrl/$path'),
+      headers: _authHeaders,
+      body: body == null ? null : jsonEncode(body),
+    );
+    if (res.statusCode == 401) {
+      authToken = null;
+      onUnauthorized?.call();
+    }
+    return res;
+  }
+
   void connectStream() {
     try {
       _channel = WebSocketChannel.connect(Uri.parse(wsUrl));
@@ -93,6 +123,10 @@ class ApiClient {
     _connectionController.close();
   }
 
+  /// Registers a new account. On success, stores the returned session token
+  /// so subsequent calls are authenticated — callers don't need to thread it
+  /// through manually, but AppState should still persist it (see
+  /// AppState.setSession) so it survives a page refresh.
   Future<Map<String, dynamic>> register(String name, String email, String password) async {
     try {
       final res = await http.post(
@@ -100,12 +134,18 @@ class ApiClient {
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'name': name, 'email': email, 'password': password}),
       );
-      return jsonDecode(res.body);
+      final data = jsonDecode(res.body) as Map<String, dynamic>;
+      if (data['ok'] == true && data['token'] is String) {
+        authToken = data['token'] as String;
+      }
+      return data;
     } catch (e) {
       return {'ok': false, 'error': 'network'};
     }
   }
 
+  /// Logs in with an email or username. On success, stores the returned
+  /// session token the same way register() does.
   Future<Map<String, dynamic>> login(String identifier, String password) async {
     try {
       final res = await http.post(
@@ -113,64 +153,79 @@ class ApiClient {
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'identifier': identifier, 'password': password}),
       );
-      return jsonDecode(res.body);
+      final data = jsonDecode(res.body) as Map<String, dynamic>;
+      if (data['ok'] == true && data['token'] is String) {
+        authToken = data['token'] as String;
+      }
+      return data;
     } catch (e) {
       return {'ok': false, 'error': 'network'};
     }
   }
 
-  Future<void> setStatus(int id, bool value) async {
+  /// Revokes the current session token server-side. Call this on explicit
+  /// logout; clearToken() alone only forgets it locally.
+  Future<void> logout() async {
     try {
-      await http.post(
-        Uri.parse('$baseUrl/status'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'id': id, 'value': value}),
-      );
+      await http.post(Uri.parse('$baseUrl/logout'), headers: _authHeaders);
+    } catch (e) {
+      // Best-effort — the token will simply expire server-side otherwise.
+    } finally {
+      authToken = null;
+    }
+  }
+
+  /// Forgets the token locally without calling the server (e.g. when a
+  /// request comes back 401, meaning the server already invalidated it).
+  void clearToken() {
+    authToken = null;
+  }
+
+  /// Sets the CALLER's own online/offline flag — there is no "id" parameter
+  /// because the server always acts on whoever the bearer token belongs to.
+  Future<void> setStatus(bool value) async {
+    try {
+      await _postAuthed('status', body: {'value': value});
     } catch (e) {
       // Ignore network errors for status updates
     }
   }
 
-  Future<void> heartbeat(int id) async {
+  Future<void> heartbeat() async {
     try {
-      await http.post(
-        Uri.parse('$baseUrl/heartbeat'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'id': id}),
-      );
+      await _postAuthed('heartbeat');
     } catch (e) {
       // The server will expire the user if heartbeats stop succeeding.
     }
   }
 
-  Future<void> reset() async {
+  /// Operator-only: requires the server's ADMIN_TOKEN, not a player session
+  /// token. Not wired into any UI; kept for scripted/manual ops use.
+  Future<void> reset(String adminToken) async {
     try {
-      await http.post(Uri.parse('$baseUrl/reset'));
+      await http.post(
+        Uri.parse('$baseUrl/reset'),
+        headers: {'Authorization': 'Bearer $adminToken'},
+      );
     } catch (e) {
       // Ignore network errors for reset
     }
   }
 
-  Future<Map<String, dynamic>> boost(int id) async {
+  Future<Map<String, dynamic>> boost() async {
     try {
-      final res = await http.post(
-        Uri.parse('$baseUrl/boost'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'id': id}),
-      );
+      final res = await _postAuthed('boost');
       return jsonDecode(res.body);
     } catch (e) {
       return {'ok': false, 'error': 'network'};
     }
   }
 
-  Future<Map<String, dynamic>> jam(int attacker, int target) async {
+  /// Jams [target]; the attacker is always the caller, inferred server-side
+  /// from the session token.
+  Future<Map<String, dynamic>> jam(int target) async {
     try {
-      final res = await http.post(
-        Uri.parse('$baseUrl/jam'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'attacker': attacker, 'target': target}),
-      );
+      final res = await _postAuthed('jam', body: {'target': target});
       return jsonDecode(res.body);
     } catch (e) {
       return {'ok': false, 'error': 'network'};
@@ -189,13 +244,11 @@ class ApiClient {
     }
   }
 
-  Future<Map<String, dynamic>> move(int id, int sector) async {
+  /// Moves the CALLER's own probe to [sector] — no "id" parameter; see
+  /// setStatus() above for why.
+  Future<Map<String, dynamic>> move(int sector) async {
     try {
-      final res = await http.post(
-        Uri.parse('$baseUrl/move'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'id': id, 'sector': sector}),
-      );
+      final res = await _postAuthed('move', body: {'sector': sector});
       return jsonDecode(res.body);
     } catch (e) {
       return {'ok': false, 'error': 'network'};

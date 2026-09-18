@@ -21,6 +21,7 @@ package main
 //   PORT            listen port (default: 5173)
 //   RENDER          any non-empty value → bind 0.0.0.0 (PaaS convention)
 //   HEARTBEAT_TIMEOUT duration before a silent user is marked offline (default: 60m)
+//   ADMIN_TOKEN     bearer token required for POST /api/reset; unset = disabled
 
 import (
 	"context"
@@ -187,19 +188,41 @@ func main() {
 	// ---- Hub ----
 	hub := NewHub()
 
+	// ---- Sessions & rate limiting ----
+	sessions := NewSessionStore()
+	// 10 register/login attempts per IP per minute — enough headroom for a
+	// mistyped password, tight enough to blunt brute-forcing.
+	authLimiter := newRateLimiter(10, time.Minute)
+
 	// ---- Routes (Go 1.22 method+path patterns) ----
+	//
+	// Every endpoint that acts on behalf of a specific user is mounted
+	// behind requireAuth(sessions): the acting user comes from the verified
+	// bearer token, never from a client-supplied id. /api/reset is mounted
+	// behind requireAdmin instead, since it's an operator action, not a
+	// player one.
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", handleHealth(sim, store))
 	mux.HandleFunc("GET /api/state", handleState(sim))
 	mux.HandleFunc("GET /api/sectors", handleSectors(sim))
-	mux.HandleFunc("POST /api/register", handleRegister(sim, store))
-	mux.HandleFunc("POST /api/login", handleLogin(sim, store))
-	mux.HandleFunc("POST /api/status", handleStatus(sim, store))
-	mux.HandleFunc("POST /api/heartbeat", handleHeartbeat(sim))
-	mux.HandleFunc("POST /api/boost", handleBoost(sim))
-	mux.HandleFunc("POST /api/jam", handleJam(sim))
-	mux.HandleFunc("POST /api/move", handleMove(sim, store))
-	mux.HandleFunc("POST /api/reset", handleReset(sim, store))
+	mux.Handle("POST /api/register",
+		rateLimitMiddleware(authLimiter, handleRegister(sim, store, sessions)))
+	mux.Handle("POST /api/login",
+		rateLimitMiddleware(authLimiter, handleLogin(sim, store, sessions)))
+	mux.Handle("POST /api/logout",
+		requireAuth(sessions)(handleLogout(sim, store, sessions)))
+	mux.Handle("POST /api/status",
+		requireAuth(sessions)(handleStatus(sim, store)))
+	mux.Handle("POST /api/heartbeat",
+		requireAuth(sessions)(handleHeartbeat(sim)))
+	mux.Handle("POST /api/boost",
+		requireAuth(sessions)(handleBoost(sim)))
+	mux.Handle("POST /api/jam",
+		requireAuth(sessions)(handleJam(sim)))
+	mux.Handle("POST /api/move",
+		requireAuth(sessions)(handleMove(sim, store)))
+	mux.Handle("POST /api/reset",
+		requireAdmin(handleReset(sim, store)))
 	mux.HandleFunc("GET /ws", handleWebSocket(sim, hub))
 	// Static files are last; /api and /ws take precedence automatically.
 	mux.Handle("/", http.FileServer(http.Dir(staticDir)))
