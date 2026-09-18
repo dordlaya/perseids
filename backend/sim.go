@@ -75,15 +75,16 @@ const (
 // User is a player's live star in the simulation.
 type User struct {
 	// Persisted
-	ID        int
-	Name      string
-	Fx, Fy    float64 // fractional position within its sector [0,1]
-	R         float64 // current radius
-	Hits      int
-	CreatedAt int64
-	LoggedIn  bool
-	Email     string
-	Pw        string // hashed password
+	ID              int
+	Name            string
+	Fx, Fy          float64 // fractional position within its sector [0,1]
+	R               float64 // current radius
+	Hits            int
+	CreatedAt       int64
+	LoggedIn        bool
+	Email           string
+	Pw              string // hashed password
+	LastHeartbeatAt int64  // live presence timestamp; not persisted
 
 	// Live (not persisted)
 	PullForce float64
@@ -94,6 +95,23 @@ type User struct {
 	Jams      map[int]int64 // attacker_id → activated_at_ms
 	LastJamAt int64
 	LastJamBy string
+}
+
+// expireHeartbeats marks users dark when their client has stopped reporting.
+func (s *Sim) expireHeartbeats(now int64) {
+	if s.heartbeatTimeout <= 0 {
+		return
+	}
+	timeoutMs := s.heartbeatTimeout.Milliseconds()
+	for _, u := range s.users {
+		if u.LoggedIn && (u.LastHeartbeatAt == 0 || now-u.LastHeartbeatAt >= timeoutMs) {
+			u.LoggedIn = false
+			u.LastHeartbeatAt = 0
+			u.PullForce = 0
+			s.rev++
+			s.markDirty(u.ID)
+		}
+	}
 }
 
 // Probe is an ephemeral physics particle that orbits active stars.
@@ -177,6 +195,11 @@ type StatusResult struct {
 	Error string `json:"error,omitempty"`
 }
 
+type HeartbeatResult struct {
+	OK    bool   `json:"ok"`
+	Error string `json:"error,omitempty"`
+}
+
 type BoostResult struct {
 	OK         bool   `json:"ok"`
 	Error      string `json:"error,omitempty"`
@@ -221,7 +244,8 @@ type Sim struct {
 	gridMaxR  int
 	anyActive bool
 
-	store Store
+	store            Store
+	heartbeatTimeout time.Duration
 }
 
 func nowMs() int64 { return time.Now().UnixMilli() }
@@ -439,6 +463,7 @@ func (s *Sim) Register(name, email, password string) RegisterResult {
 		Name: name, Email: email, Pw: hashPassword(password),
 		LoggedIn: true, CreatedAt: nowMs(), R: userRadius,
 	})
+	u.LastHeartbeatAt = nowMs()
 	u.Fx, u.Fy = s.placeStarFraction(sector)
 	s.users = append(s.users, u)
 	s.positionUsers()
@@ -469,7 +494,23 @@ func (s *Sim) Authenticate(identifier, password string) AuthResult {
 		s.rev++
 		s.markDirty(found.ID)
 	}
+	found.LastHeartbeatAt = nowMs()
 	return AuthResult{OK: true, ID: found.ID, Name: found.Name}
+}
+
+// Heartbeat records that a logged-in client is still connected.
+func (s *Sim) Heartbeat(uid int) HeartbeatResult {
+	for _, u := range s.users {
+		if u.ID != uid {
+			continue
+		}
+		if !u.LoggedIn {
+			return HeartbeatResult{Error: "offline"}
+		}
+		u.LastHeartbeatAt = nowMs()
+		return HeartbeatResult{OK: true}
+	}
+	return HeartbeatResult{Error: "not_found"}
 }
 
 // SetLoggedIn toggles a star's online/offline state.
@@ -477,6 +518,12 @@ func (s *Sim) SetLoggedIn(uid int, value bool) StatusResult {
 	for _, u := range s.users {
 		if u.ID == uid {
 			u.LoggedIn = value
+			if value {
+				u.LastHeartbeatAt = nowMs()
+			} else {
+				u.LastHeartbeatAt = 0
+				u.PullForce = 0
+			}
 			s.rev++
 			s.markDirty(uid)
 			return StatusResult{OK: true}
@@ -857,6 +904,7 @@ func (s *Sim) snapshot(includeUsers bool) Snapshot {
 // Tick advances the sim and returns a snapshot + the current rev.
 // Must be called with s.mu held. The snapshot is safe to marshal after release.
 func (s *Sim) Tick(dt float64, includeUsers bool) (Snapshot, int) {
+	s.expireHeartbeats(nowMs())
 	s.update(dt)
 	return s.snapshot(includeUsers), s.rev
 }

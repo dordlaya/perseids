@@ -131,6 +131,18 @@ class ApiClient {
     }
   }
 
+  Future<void> heartbeat(int id) async {
+    try {
+      await http.post(
+        Uri.parse('$baseUrl/heartbeat'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'id': id}),
+      );
+    } catch (e) {
+      // The server will expire the user if heartbeats stop succeeding.
+    }
+  }
+
   Future<void> reset() async {
     try {
       await http.post(Uri.parse('$baseUrl/reset'));

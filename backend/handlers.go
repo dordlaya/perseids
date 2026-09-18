@@ -52,6 +52,10 @@ type StatusReq struct {
 	Value bool `json:"value"`
 }
 
+type HeartbeatReq struct {
+	ID int `json:"id"`
+}
+
 type BoostReq struct {
 	ID int `json:"id"`
 }
@@ -192,6 +196,26 @@ func handleStatus(sim *Sim, store Store) http.HandlerFunc {
 		status := http.StatusOK
 		if !res.OK {
 			status = http.StatusNotFound
+		}
+		writeJSON(w, status, res)
+	}
+}
+
+func handleHeartbeat(sim *Sim) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req HeartbeatReq
+		if !decodeBody(w, r, &req) {
+			return
+		}
+		sim.mu.Lock()
+		res := sim.Heartbeat(req.ID)
+		sim.mu.Unlock()
+		status := http.StatusOK
+		if !res.OK {
+			status = http.StatusConflict
+			if res.Error == "not_found" {
+				status = http.StatusNotFound
+			}
 		}
 		writeJSON(w, status, res)
 	}

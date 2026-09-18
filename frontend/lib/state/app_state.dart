@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import 'dart:math';
 import '../models/models.dart';
 import '../api/client.dart';
@@ -44,6 +45,7 @@ class AppState extends ChangeNotifier {
   int? selectedUserId;
   
   bool showLoginModal = false;
+  Timer? _heartbeatTimer;
 
   AppState() {
     _loadSession();
@@ -69,6 +71,8 @@ class AppState extends ChangeNotifier {
     } catch (_) {}
     if (sessionUserId == null) {
       showLoginModal = true;
+    } else {
+      _startHeartbeat();
     }
   }
 
@@ -76,14 +80,30 @@ class AppState extends ChangeNotifier {
     sessionUserId = id;
     sessionUserName = name;
     web.window.localStorage.setItem('spacemap.session', jsonEncode({'id': id, 'name': name}));
+    _startHeartbeat();
     notifyListeners();
   }
 
   void clearSession() {
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = null;
     sessionUserId = null;
     sessionUserName = null;
     web.window.localStorage.removeItem('spacemap.session');
     notifyListeners();
+  }
+
+  void _startHeartbeat() {
+    final id = sessionUserId;
+    if (id == null) return;
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      final currentId = sessionUserId;
+      if (currentId != null && isConnected) {
+        api.heartbeat(currentId);
+      }
+    });
+    api.heartbeat(id);
   }
 
   void _applySnapshot(Snapshot snap) {
@@ -162,6 +182,7 @@ class AppState extends ChangeNotifier {
 
   @override
   void dispose() {
+    _heartbeatTimer?.cancel();
     api.dispose();
     super.dispose();
   }

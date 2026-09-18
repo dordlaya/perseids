@@ -20,6 +20,7 @@ package main
 //   BIND            listen address (default: 127.0.0.1; 0.0.0.0 when RENDER is set)
 //   PORT            listen port (default: 5173)
 //   RENDER          any non-empty value → bind 0.0.0.0 (PaaS convention)
+//   HEARTBEAT_TIMEOUT duration before a silent user is marked offline (default: 60m)
 
 import (
 	"context"
@@ -181,6 +182,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("sim init: %v", err)
 	}
+	sim.heartbeatTimeout = durationOr("HEARTBEAT_TIMEOUT", time.Hour)
 
 	// ---- Hub ----
 	hub := NewHub()
@@ -192,6 +194,7 @@ func main() {
 	mux.HandleFunc("POST /api/register", handleRegister(sim, store))
 	mux.HandleFunc("POST /api/login", handleLogin(sim, store))
 	mux.HandleFunc("POST /api/status", handleStatus(sim, store))
+	mux.HandleFunc("POST /api/heartbeat", handleHeartbeat(sim))
 	mux.HandleFunc("POST /api/boost", handleBoost(sim))
 	mux.HandleFunc("POST /api/jam", handleJam(sim))
 	mux.HandleFunc("POST /api/reset", handleReset(sim, store))
@@ -239,4 +242,16 @@ func main() {
 	if dirty {
 		persistNow(sim, store)
 	}
+}
+
+func durationOr(key string, fallback time.Duration) time.Duration {
+	if value := strings.TrimSpace(os.Getenv(key)); value != "" {
+		duration, err := time.ParseDuration(value)
+		if err != nil || duration <= 0 {
+			log.Printf("warn: invalid %s=%q; using %s", key, value, fallback)
+			return fallback
+		}
+		return duration
+	}
+	return fallback
 }
