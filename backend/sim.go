@@ -49,7 +49,7 @@ const (
 	spawnMax  = 10.0
 
 	sectorSize     = 560.0
-	sectorCols     = 4
+	sectorCols     = 3
 	sectorPad      = 70.0
 	starsPerSector = 10
 	pullMin        = 0.05

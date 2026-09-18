@@ -1,6 +1,7 @@
 import 'package:flame/game.dart';
 import 'package:flame/components.dart';
 import 'package:flame/events.dart';
+import 'package:flame/experimental.dart';
 import '../state/app_state.dart';
 import 'components/background_component.dart';
 import 'components/star_component.dart';
@@ -32,6 +33,12 @@ class SpaceMapGame extends FlameGame with ScaleDetector, ScrollDetector {
     super.update(dt);
     state.stepDisplay(dt);
     _syncComponents();
+    
+    if (state.world.w > 0 && state.world.h > 0) {
+      camera.setBounds(
+        Rectangle.fromLTRB(0, 0, state.world.w, state.world.h),
+      );
+    }
   }
 
   void _syncComponents() {

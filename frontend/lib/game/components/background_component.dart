@@ -117,8 +117,8 @@ class BackgroundComponent extends Component {
     // ── grid sectors ─────────────────────────────────────────────────────────
     final int n = max(1, (state.users.length / 10).ceil());
     for (int i = 0; i < n; i++) {
-      final int col = i % 4;
-      final int row = i ~/ 4;
+      final int col = i % 3;
+      final int row = i ~/ 3;
       canvas.drawRect(
         Rect.fromLTWH(col * 560.0, row * 560.0, 560, 560),
         _gridPaint,
