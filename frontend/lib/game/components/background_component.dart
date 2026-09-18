@@ -1,6 +1,8 @@
 import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
+
 import '../../state/app_state.dart';
+
 import 'dart:math';
 
 class BackgroundComponent extends Component {
@@ -25,10 +27,10 @@ class BackgroundComponent extends Component {
 
     for (final cfg in layers) {
       final int count  = cfg[0].toInt();
-      final double rMin = cfg[1].toDouble();
-      final double rMax = cfg[2].toDouble();
-      final double aMin = cfg[3].toDouble();
-      final double aMax = cfg[4].toDouble();
+      final double rMin = cfg[1];
+      final double rMax = cfg[2];
+      final double aMin = cfg[3];
+      final double aMax = cfg[4];
 
       for (int s = 0; s < count; s++) {
         // slight hue variety: blue-ish, warm, or white
@@ -39,8 +41,8 @@ class BackgroundComponent extends Component {
                 : 0;
 
         _bgStars.add(_BgStar(
-          x:             _rnd.nextDouble() * 2240,
-          y:             _rnd.nextDouble() * 2240,
+          x:             -200 + _rnd.nextDouble() * 2440,
+          y:             -200 + _rnd.nextDouble() * 2440,
           r:             rMin + _rnd.nextDouble() * (rMax - rMin),
           a:             aMin + _rnd.nextDouble() * (aMax - aMin),
           hue:           hue,
@@ -80,8 +82,9 @@ class BackgroundComponent extends Component {
     // ── stars ────────────────────────────────────────────────────────────────
     for (final star in _bgStars) {
       // Gentle twinkle: oscillate alpha ±25 %
-      final double twinkle = 0.75 + 0.25 * sin(t * star.twinkleSpeed + star.twinkleOffset);
-      final double alpha   = (star.a * twinkle).clamp(0.0, 1.0);
+      final double twinkle =
+          0.75 + 0.25 * sin(t * star.twinkleSpeed + star.twinkleOffset);
+      final double alpha = (star.a * twinkle).clamp(0.0, 1.0);
 
       // Star colour (white-blue default, or tinted)
       final Color coreColor = star.hue == 0
@@ -94,7 +97,9 @@ class BackgroundComponent extends Component {
         star.r * 4.5,
         Paint()
           ..maskFilter = MaskFilter.blur(BlurStyle.normal, star.r * 3.0)
-          ..color = coreColor.withAlpha(((alpha * 0.35) * 255).round().clamp(0, 255)),
+          ..color = coreColor.withAlpha(
+            ((alpha * 0.35) * 255).round().clamp(0, 255),
+          ),
       );
 
       // Inner soft halo
@@ -103,7 +108,9 @@ class BackgroundComponent extends Component {
         star.r * 1.8,
         Paint()
           ..maskFilter = MaskFilter.blur(BlurStyle.normal, star.r * 1.1)
-          ..color = coreColor.withAlpha(((alpha * 0.65) * 255).round().clamp(0, 255)),
+          ..color = coreColor.withAlpha(
+            ((alpha * 0.65) * 255).round().clamp(0, 255),
+          ),
       );
 
       // Sharp core pixel
