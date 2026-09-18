@@ -39,6 +39,8 @@ BoxDecoration _glassDecoration([double radius = 12.0]) {
 // ---------------------------------------------------------------------------
 
 class LoginOverlay extends StatefulWidget {
+  final SpaceMapGame? game;
+  const LoginOverlay({this.game});
   @override
   _LoginOverlayState createState() => _LoginOverlayState();
 }
@@ -62,6 +64,7 @@ class _LoginOverlayState extends State<LoginOverlay> {
         state.setSession(res['id'], res['name']);
         state.showLoginModal = false;
         state.notifyListeners();
+        _zoomToFullMap(state);
       } else {
         setState(() => error = res['error']);
       }
@@ -75,10 +78,25 @@ class _LoginOverlayState extends State<LoginOverlay> {
         state.setSession(res['id'], res['name']);
         state.showLoginModal = false;
         state.notifyListeners();
+        _zoomToFullMap(state);
       } else {
         setState(() => error = res['error']);
       }
     }
+  }
+
+  void _zoomToFullMap(AppState state) {
+    final game = widget.game;
+    if (game == null) return;
+    // Small delay so the world snapshot has been received before we set bounds
+    Future.delayed(const Duration(milliseconds: 300), () {
+      final ww = state.world.w > 0 ? state.world.w : 1680;
+      final wh = state.world.h > 0 ? state.world.h : 560;
+      // Centre the camera on the middle of the world
+      game.camera.viewfinder.position = Vector2(ww / 2, wh / 2);
+      // Zoom out to fit the whole map
+      game.camera.viewfinder.zoom = game.dynamicMinZoom;
+    });
   }
 
   @override

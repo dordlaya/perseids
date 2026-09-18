@@ -88,7 +88,7 @@ class _GameScreenState extends State<GameScreen> {
           ),
 
           // Modals
-          LoginOverlay(),
+          LoginOverlay(game: _game),
         ],
       ),
     );
