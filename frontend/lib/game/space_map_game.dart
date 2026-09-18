@@ -41,11 +41,9 @@ class SpaceMapGame extends FlameGame with ScaleDetector, ScrollDetector {
     final target = _cameraTarget;
     if (target != null) {
       final amount = 1 - math.exp(-8 * dt.clamp(0.0, 0.1));
-      camera.viewfinder.position = Vector2.lerp(
-        camera.viewfinder.position,
-        target,
-        amount,
-      )!;
+      final position = camera.viewfinder.position;
+      position.x += (target.x - position.x) * amount;
+      position.y += (target.y - position.y) * amount;
     }
     final zoomTarget = _cameraZoomTarget;
     if (zoomTarget != null) {
