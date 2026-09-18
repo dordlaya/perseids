@@ -2,6 +2,7 @@ import 'package:flame/game.dart';
 import 'package:flame/components.dart';
 import 'package:flame/events.dart';
 import 'package:flame/experimental.dart';
+import 'dart:math';
 
 import '../state/app_state.dart';
 import 'components/background_component.dart';
