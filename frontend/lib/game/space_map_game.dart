@@ -38,6 +38,11 @@ class SpaceMapGame extends FlameGame with ScaleDetector, ScrollDetector {
 
     if (state.world.w > 0 && state.world.h > 0) {
       camera.setBounds(Rectangle.fromLTRB(0, 0, state.world.w, state.world.h));
+      
+      final minZ = dynamicMinZoom;
+      if (camera.viewfinder.zoom < minZ) {
+        camera.viewfinder.zoom = minZ;
+      }
     }
   }
 
@@ -90,9 +95,9 @@ class SpaceMapGame extends FlameGame with ScaleDetector, ScrollDetector {
   }
 
   // --- Camera Controls ---
-
+  
   static const double maxZoomLimit = 2.6;
-
+  
   late double _startZoom;
 
   double get dynamicMinZoom {
@@ -115,13 +120,10 @@ class SpaceMapGame extends FlameGame with ScaleDetector, ScrollDetector {
   void onScaleUpdate(ScaleUpdateInfo info) {
     // Panning
     camera.viewfinder.position -= info.delta.global / camera.viewfinder.zoom;
-
+    
     // Pinch to zoom
     if (info.pointerCount >= 2) {
-      final newZoom = (_startZoom * info.raw.scale).clamp(
-        dynamicMinZoom,
-        maxZoomLimit,
-      );
+      final newZoom = (_startZoom * info.raw.scale).clamp(dynamicMinZoom, maxZoomLimit);
       camera.viewfinder.zoom = newZoom;
     }
   }
@@ -129,10 +131,7 @@ class SpaceMapGame extends FlameGame with ScaleDetector, ScrollDetector {
   @override
   void onScroll(PointerScrollInfo info) {
     final zoomDelta = info.scrollDelta.global.y > 0 ? 1 / 1.12 : 1.12;
-    final newZoom = (camera.viewfinder.zoom * zoomDelta).clamp(
-      dynamicMinZoom,
-      maxZoomLimit,
-    );
+    final newZoom = (camera.viewfinder.zoom * zoomDelta).clamp(dynamicMinZoom, maxZoomLimit);
     camera.viewfinder.zoom = newZoom;
   }
 }

@@ -633,7 +633,7 @@ class ControlsOverlay extends StatelessWidget {
   void zoom(double factor) {
     if (game != null) {
       final z = game!.camera.viewfinder.zoom * factor;
-      game!.camera.viewfinder.zoom = z.clamp(0.05, 2.6);
+      game!.camera.viewfinder.zoom = z.clamp(game!.dynamicMinZoom, SpaceMapGame.maxZoomLimit);
     }
   }
 

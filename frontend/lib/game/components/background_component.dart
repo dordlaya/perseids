@@ -66,17 +66,22 @@ class BackgroundComponent extends Component {
     final double t = DateTime.now().millisecondsSinceEpoch / 1000.0;
 
     // ── deep-space background ────────────────────────────────────────────────
+    // Use live world size + generous margin so it never cuts off.
+    final double ww = state.world.w > 0 ? state.world.w : 2240;
+    final double wh = state.world.h > 0 ? state.world.h : 2240;
+    const double margin = 800;
+    final bgRect = Rect.fromLTWH(-margin, -margin, ww + margin * 2, wh + margin * 2);
     canvas.drawRect(
-      const Rect.fromLTWH(-500, -500, 3240, 3240),
+      bgRect,
       Paint()
-        ..shader = const RadialGradient(
+        ..shader = RadialGradient(
           center: Alignment.center,
           radius: 0.85,
-          colors: [
+          colors: const [
             Color(0xFF0a0e1a), // deep navy centre
             Color(0xFF050709), // almost black edges
           ],
-        ).createShader(const Rect.fromLTWH(-500, -500, 3240, 3240)),
+        ).createShader(bgRect),
     );
 
     // ── stars ────────────────────────────────────────────────────────────────
