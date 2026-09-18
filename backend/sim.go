@@ -62,8 +62,10 @@ const (
 	jamDurationMs   = 60_000
 	jamCooldownMs   = 1_800_000
 
-	gridCell          = 120.0
-	userBroadcastEvery = 6
+	gridCell = 120.0
+	// Dynamic user positions are sent at 15 Hz while the simulation continues
+	// at 30 Hz. The client interpolates between these snapshots.
+	userBroadcastEvery = 2
 )
 
 // ---------------------------------------------------------------------------
@@ -96,11 +98,11 @@ type User struct {
 
 // Probe is an ephemeral physics particle that orbits active stars.
 type Probe struct {
-	ID         int
-	X, Y       float64
-	Vx, Vy     float64
-	Wander     float64
-	Hue        float64
+	ID     int
+	X, Y   float64
+	Vx, Vy float64
+	Wander float64
+	Hue    float64
 }
 
 // gridKey is the (col, row) cell index in the spatial hash grid.
@@ -840,9 +842,9 @@ func (s *Sim) snapshot(includeUsers bool) Snapshot {
 				ID: u.ID, Name: u.Name,
 				X: math.Round(u.X*10) / 10, Y: math.Round(u.Y*10) / 10,
 				R: math.Round(u.R*100) / 100, Hits: u.Hits,
-				LoggedIn: u.LoggedIn,
-				Pull:     math.Round(u.PullForce*1000) / 1000,
-				Pulse:    math.Round(u.Pulse*1000) / 1000,
+				LoggedIn:  u.LoggedIn,
+				Pull:      math.Round(u.PullForce*1000) / 1000,
+				Pulse:     math.Round(u.Pulse*1000) / 1000,
 				CreatedAt: u.CreatedAt, Sector: u.Sector,
 				BoostAt: u.BoostAt, LastJamAt: u.LastJamAt, LastJamBy: u.LastJamBy,
 			}

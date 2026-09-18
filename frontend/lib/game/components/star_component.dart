@@ -8,12 +8,28 @@ import 'package:flame/events.dart';
 class StarComponent extends Component with TapCallbacks {
   UserSnap user;
   final AppState state;
+  late double _x;
+  late double _y;
   
-  StarComponent(this.user, this.state);
+  StarComponent(this.user, this.state)
+      : _x = user.x,
+        _y = user.y;
+
+  void updateUser(UserSnap next) {
+    user = next;
+  }
+
+  @override
+  void update(double dt) {
+    super.update(dt);
+    final amount = 1 - exp(-18 * dt.clamp(0.0, 0.1));
+    _x += (user.x - _x) * amount;
+    _y += (user.y - _y) * amount;
+  }
 
   @override
   bool containsLocalPoint(Vector2 point) {
-    final d = (point.x - user.x) * (point.x - user.x) + (point.y - user.y) * (point.y - user.y);
+    final d = (point.x - _x) * (point.x - _x) + (point.y - _y) * (point.y - _y);
     final tapR = max(user.r + 6, 16.0);
     return d <= tapR * tapR;
   }
@@ -37,7 +53,7 @@ class StarComponent extends Component with TapCallbacks {
       ..color = glowColor
       ..maskFilter = MaskFilter.blur(BlurStyle.normal, user.r + 12)
       ..blendMode = BlendMode.plus;
-    canvas.drawCircle(Offset(user.x, user.y), user.r + 12, glowPaint);
+    canvas.drawCircle(Offset(_x, _y), user.r + 12, glowPaint);
 
     // Draw Pulse Ring
     if (pulse > 0) {
@@ -45,11 +61,11 @@ class StarComponent extends Component with TapCallbacks {
         ..color = const Color(0xFFFFD282).withOpacity(pulse)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2.0;
-      canvas.drawCircle(Offset(user.x, user.y), user.r + 6 + (1 - pulse) * 16, pulsePaint);
+      canvas.drawCircle(Offset(_x, _y), user.r + 6 + (1 - pulse) * 16, pulsePaint);
     }
 
     // Draw Star Shape
-    _drawStarShape(canvas, user.x, user.y, user.r, pulse, vis);
+    _drawStarShape(canvas, _x, _y, user.r, pulse, vis);
     
     // Draw Selected Ring
     if (state.selectedUserId == user.id) {
@@ -57,7 +73,7 @@ class StarComponent extends Component with TapCallbacks {
         ..color = const Color(0x9FE7FF).withOpacity(0.9)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.5;
-      canvas.drawCircle(Offset(user.x, user.y), user.r + 12, selectedPaint);
+      canvas.drawCircle(Offset(_x, _y), user.r + 12, selectedPaint);
     }
   }
 

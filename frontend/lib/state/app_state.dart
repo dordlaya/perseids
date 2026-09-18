@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:math';
 import '../models/models.dart';
 import '../api/client.dart';
 import 'dart:convert';
@@ -144,7 +145,9 @@ class AppState extends ChangeNotifier {
   }
   
   void stepDisplay(double dt) {
-    final pk = (dt * 14).clamp(0.0, 1.0);
+    // Frame-rate independent smoothing: the same response is produced at
+    // 30, 60, or 120 FPS.
+    final pk = 1 - exp(-18 * dt.clamp(0.0, 0.1));
     for (var p in probes) {
       p.x += (p.tx - p.x) * pk;
       p.y += (p.ty - p.y) * pk;

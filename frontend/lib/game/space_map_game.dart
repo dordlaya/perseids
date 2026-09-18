@@ -8,6 +8,7 @@ import '../state/app_state.dart';
 import 'components/background_component.dart';
 import 'components/star_component.dart';
 import 'components/probe_component.dart';
+import 'dart:math' as math;
 
 class SpaceMapGame extends FlameGame with ScaleDetector, ScrollDetector {
   final AppState state;
@@ -15,6 +16,8 @@ class SpaceMapGame extends FlameGame with ScaleDetector, ScrollDetector {
   late final BackgroundComponent background;
   final Map<int, StarComponent> starComponents = {};
   final Map<int, ProbeComponent> probeComponents = {};
+  Vector2? _cameraTarget;
+  double? _cameraZoomTarget;
 
   SpaceMapGame(this.state);
 
@@ -35,6 +38,30 @@ class SpaceMapGame extends FlameGame with ScaleDetector, ScrollDetector {
     super.update(dt);
     state.stepDisplay(dt);
     _syncComponents();
+    final target = _cameraTarget;
+    if (target != null) {
+      final amount = 1 - math.exp(-8 * dt.clamp(0.0, 0.1));
+      camera.viewfinder.position = Vector2.lerp(
+        camera.viewfinder.position,
+        target,
+        amount,
+      )!;
+    }
+    final zoomTarget = _cameraZoomTarget;
+    if (zoomTarget != null) {
+      final amount = 1 - math.exp(-8 * dt.clamp(0.0, 0.1));
+      camera.viewfinder.zoom += (zoomTarget - camera.viewfinder.zoom) * amount;
+    }
+  }
+
+  void moveCameraTo(Vector2 position, {double? zoom}) {
+    _cameraTarget = position.clone();
+    _cameraZoomTarget = zoom;
+  }
+
+  void stopCameraFollow() {
+    _cameraTarget = null;
+    _cameraZoomTarget = null;
 
     if (state.world.w > 0 && state.world.h > 0) {
       camera.setBounds(Rectangle.fromLTRB(0, 0, state.world.w, state.world.h));
@@ -62,7 +89,7 @@ class SpaceMapGame extends FlameGame with ScaleDetector, ScrollDetector {
     // Add new / Update existing
     for (final user in state.users) {
       if (starComponents.containsKey(user.id)) {
-        starComponents[user.id]!.user = user;
+        starComponents[user.id]!.updateUser(user);
       } else {
         final comp = StarComponent(user, state);
         starComponents[user.id] = comp;
@@ -112,6 +139,7 @@ class SpaceMapGame extends FlameGame with ScaleDetector, ScrollDetector {
 
   @override
   void onScaleStart(ScaleStartInfo info) {
+    stopCameraFollow();
     _startZoom = camera.viewfinder.zoom;
   }
 

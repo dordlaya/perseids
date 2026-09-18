@@ -355,8 +355,7 @@ class _LeaderboardOverlayState extends State<LeaderboardOverlay> {
   void _focusUser(AppState state, int id) {
     final u = state.getUserById(id);
     if (u != null && widget.game != null) {
-      widget.game!.camera.viewfinder.position = Vector2(u.x, u.y);
-      widget.game!.camera.viewfinder.zoom = 1.8;
+      widget.game!.moveCameraTo(Vector2(u.x, u.y), zoom: 1.8);
       state.selectedUserId = u.id;
       state.notifyListeners();
     }
@@ -706,8 +705,7 @@ class ControlsOverlay extends StatelessWidget {
           if (me != null)
             _btn(Icons.my_location, () {
               if (game != null) {
-                game!.camera.viewfinder.position = Vector2(me.x, me.y);
-                game!.camera.viewfinder.zoom = 1.8;
+                game!.moveCameraTo(Vector2(me.x, me.y), zoom: 1.8);
                 state.selectedUserId = me.id;
                 state.notifyListeners();
               }
@@ -801,8 +799,7 @@ class _SearchOverlayState extends State<SearchOverlay> {
     if (widget.game != null) {
       if (item['kind'] == 'star') {
         final u = item['user'] as UserSnap;
-        widget.game!.camera.viewfinder.position = Vector2(u.x, u.y);
-        widget.game!.camera.viewfinder.zoom = 1.8;
+        widget.game!.moveCameraTo(Vector2(u.x, u.y), zoom: 1.8);
         state.selectedUserId = u.id;
         state.notifyListeners();
       } else {
@@ -811,8 +808,7 @@ class _SearchOverlayState extends State<SearchOverlay> {
         final row = i ~/ 4;
         final cx = col * 560.0 + 280.0;
         final cy = row * 560.0 + 280.0;
-        widget.game!.camera.viewfinder.position = Vector2(cx, cy);
-        widget.game!.camera.viewfinder.zoom = 0.5;
+        widget.game!.moveCameraTo(Vector2(cx, cy), zoom: 0.5);
       }
     }
     _searchController.clear();
