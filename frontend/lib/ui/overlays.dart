@@ -61,7 +61,7 @@ class _LoginOverlayState extends State<LoginOverlay> {
         passwordController.text,
       );
       if (res['ok'] == true) {
-        state.setSession(res['id'], res['name']);
+        state.setSession(res['id'], res['name'], res['token'] as String);
         state.showLoginModal = false;
         state.notifyListeners();
         _zoomToFullMap(state);
@@ -75,7 +75,7 @@ class _LoginOverlayState extends State<LoginOverlay> {
         passwordController.text,
       );
       if (res['ok'] == true) {
-        state.setSession(res['id'], res['name']);
+        state.setSession(res['id'], res['name'], res['token'] as String);
         state.showLoginModal = false;
         state.notifyListeners();
         _zoomToFullMap(state);
@@ -598,7 +598,7 @@ class StarInfoOverlay extends StatelessWidget {
                       foregroundColor: const Color(0xFF050C1A),
                       minimumSize: const Size.fromHeight(38),
                     ),
-                    onPressed: () => state.api.setStatus(u.id, !u.loggedIn),
+                    onPressed: () => state.api.setStatus(!u.loggedIn),
                     child: Text(u.loggedIn ? 'Go Dark' : 'Go Live'),
                   ),
                   const SizedBox(height: 8),
@@ -634,7 +634,7 @@ class StarInfoOverlay extends StatelessWidget {
                     ),
                     onPressed: !u.loggedIn || arriving
                         ? null
-                        : () => state.api.jam(state.sessionUserId!, u.id),
+                        : () => state.api.jam(u.id),
                     child: const Text('Jam −25%'),
                   ),
                 ],
@@ -716,7 +716,7 @@ class StarInfoOverlay extends StatelessWidget {
                     ? null
                     : () async {
                         setState(() => submitting = true);
-                        final result = await state.api.move(user.id, selected!);
+                        final result = await state.api.move(selected!);
                         if (result['ok'] == true) {
                           if (context.mounted) Navigator.pop(context);
                         } else {
@@ -815,7 +815,7 @@ class ControlsOverlay extends StatelessWidget {
                     : (canBoost ? spaceAccent : spaceTextSecondary),
                 elevation: 4,
                 onPressed: canBoost
-                    ? () => state.api.boost(state.sessionUserId!)
+                    ? () => state.api.boost()
                     : null,
                 child: Text(
                   cooldown > 0 ? fmtClock(cooldown) : '⚡',
