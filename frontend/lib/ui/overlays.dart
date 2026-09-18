@@ -516,12 +516,16 @@ class StarInfoOverlay extends StatelessWidget {
 
     final now = DateTime.now().millisecondsSinceEpoch;
     final jammed = u.lastJamAt > 0 && (now - u.lastJamAt) < 60000;
+    final arriving = u.gravityUntil > now;
 
-    final statusColor = jammed
+    final statusColor = arriving
+        ? spaceAccent
+        : jammed
         ? spaceDanger
         : (u.loggedIn ? spaceOnline : spaceOffline);
     final statusText =
-        (u.loggedIn ? 'online' : 'offline') + (jammed ? ' · jammed' : '');
+        (u.loggedIn ? 'online' : 'offline') +
+        (arriving ? ' · arriving' : (jammed ? ' · jammed' : ''));
     final isMobile = MediaQuery.of(context).size.width < 600;
 
     return Positioned(
@@ -570,6 +574,12 @@ class StarInfoOverlay extends StatelessWidget {
                 const SizedBox(height: 12),
                 _infoRow('sector', getSectorName(u.sector)),
                 _infoRow('status', statusText, valColor: statusColor),
+                if (arriving)
+                  _infoRow(
+                    'gravity',
+                    'offline · ${fmtClock(u.gravityUntil - now)}',
+                    valColor: spaceAccent,
+                  ),
                 _infoRow('pull force', '${(u.pull * 100).round()}%'),
                 _infoRow('age', formatDuration(now - u.createdAt)),
                 _infoRow('absorbed', '${u.hits}'),
@@ -591,6 +601,24 @@ class StarInfoOverlay extends StatelessWidget {
                     onPressed: () => state.api.setStatus(u.id, !u.loggedIn),
                     child: Text(u.loggedIn ? 'Go Dark' : 'Go Live'),
                   ),
+                  const SizedBox(height: 8),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: spaceAccent.withOpacity(0.16),
+                      foregroundColor: spaceAccent,
+                      elevation: 0,
+                      side: const BorderSide(color: spaceAccent),
+                      minimumSize: const Size.fromHeight(38),
+                    ),
+                    onPressed: !u.loggedIn || u.moveReadyAt > now
+                        ? null
+                        : () => _openMoveDialog(context, state, u),
+                    child: Text(
+                      u.moveReadyAt > now
+                          ? 'Move cooldown · ${fmtClock(u.moveReadyAt - now)}'
+                          : 'Move to another galaxy',
+                    ),
+                  ),
                 ],
 
                 if (state.sessionUserId != null &&
@@ -604,7 +632,9 @@ class StarInfoOverlay extends StatelessWidget {
                       side: const BorderSide(color: spaceDanger),
                       minimumSize: const Size.fromHeight(38),
                     ),
-                    onPressed: () => state.api.jam(state.sessionUserId!, u.id),
+                    onPressed: arriving
+                        ? null
+                        : () => state.api.jam(state.sessionUserId!, u.id),
                     child: const Text('Jam −25%'),
                   ),
                 ],
@@ -613,6 +643,98 @@ class StarInfoOverlay extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+
+  Future<void> _openMoveDialog(
+    BuildContext context,
+    AppState state,
+    UserSnap user,
+  ) async {
+    await state.refreshSectors();
+    if (!context.mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        int? selected;
+        String? error;
+        bool submitting = false;
+        return StatefulBuilder(
+          builder: (context, setState) => AlertDialog(
+            backgroundColor: const Color(0xFF081321),
+            title: const Text(
+              'Move to a galaxy',
+              style: TextStyle(color: spaceTextPrimary),
+            ),
+            content: SizedBox(
+              width: 360,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'Your gravity will be offline for 30 seconds after arrival.',
+                    style: TextStyle(color: spaceTextSecondary, fontSize: 12),
+                  ),
+                  const SizedBox(height: 12),
+                  ...state.sectors
+                      .where((sector) => sector.id != user.sector)
+                      .map(
+                        (sector) => RadioListTile<int>(
+                          value: sector.id,
+                          groupValue: selected,
+                          onChanged: sector.available && !submitting
+                              ? (value) => setState(() => selected = value)
+                              : null,
+                          title: Text(
+                            sector.name,
+                            style: const TextStyle(color: spaceTextPrimary),
+                          ),
+                          subtitle: Text(
+                            '${sector.occupied}/${sector.capacity} stars'
+                            '${sector.available ? '' : ' · Full'}',
+                            style: TextStyle(
+                              color: sector.available
+                                  ? spaceTextSecondary
+                                  : spaceDanger,
+                            ),
+                          ),
+                          activeColor: spaceAccent,
+                        ),
+                      ),
+                  if (error != null)
+                    Text(error!, style: const TextStyle(color: spaceDanger)),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: submitting ? null : () => Navigator.pop(context),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: selected == null || submitting
+                    ? null
+                    : () async {
+                        setState(() => submitting = true);
+                        final result = await state.api.move(user.id, selected!);
+                        if (result['ok'] == true) {
+                          if (context.mounted) Navigator.pop(context);
+                        } else {
+                          await state.refreshSectors();
+                          if (context.mounted) {
+                            setState(() {
+                              submitting = false;
+                              error = result['error']?.toString() ?? 'move_failed';
+                            });
+                          }
+                        }
+                      },
+                child: Text(submitting ? 'Moving...' : 'Move'),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 

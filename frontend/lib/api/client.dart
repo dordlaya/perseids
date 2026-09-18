@@ -176,4 +176,29 @@ class ApiClient {
       return {'ok': false, 'error': 'network'};
     }
   }
+
+  Future<List<SectorSnap>> getSectors() async {
+    try {
+      final res = await http.get(Uri.parse('$baseUrl/sectors'));
+      final data = jsonDecode(res.body) as List<dynamic>;
+      return data
+          .map((item) => SectorSnap.fromJson(item as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      return [];
+    }
+  }
+
+  Future<Map<String, dynamic>> move(int id, int sector) async {
+    try {
+      final res = await http.post(
+        Uri.parse('$baseUrl/move'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'id': id, 'sector': sector}),
+      );
+      return jsonDecode(res.body);
+    } catch (e) {
+      return {'ok': false, 'error': 'network'};
+    }
+  }
 }

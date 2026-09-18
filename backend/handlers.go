@@ -65,6 +65,11 @@ type JamReq struct {
 	Target   int `json:"target"`
 }
 
+type MoveReq struct {
+	ID     int `json:"id"`
+	Sector int `json:"sector"`
+}
+
 // ---------------------------------------------------------------------------
 // Middleware
 // ---------------------------------------------------------------------------
@@ -138,6 +143,15 @@ func handleState(sim *Sim) http.HandlerFunc {
 		snap := sim.snapshot(true)
 		sim.mu.Unlock()
 		writeJSON(w, http.StatusOK, snap)
+	}
+}
+
+func handleSectors(sim *Sim) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		sim.mu.Lock()
+		sectors := sim.sectors()
+		sim.mu.Unlock()
+		writeJSON(w, http.StatusOK, sectors)
 	}
 }
 
@@ -244,12 +258,36 @@ func handleJam(sim *Sim) http.HandlerFunc {
 		if !decodeBody(w, r, &req) {
 			return
 		}
+
 		sim.mu.Lock()
 		res := sim.Jam(req.Attacker, req.Target)
 		sim.mu.Unlock()
 		status := http.StatusOK
 		if !res.OK {
 			status = http.StatusConflict
+		}
+		writeJSON(w, status, res)
+	}
+}
+
+func handleMove(sim *Sim, store Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req MoveReq
+		if !decodeBody(w, r, &req) {
+			return
+		}
+		sim.mu.Lock()
+		res := sim.MoveUser(req.ID, req.Sector)
+		sim.mu.Unlock()
+		if res.OK {
+			persistNow(sim, store)
+		}
+		status := http.StatusOK
+		if !res.OK {
+			status = http.StatusConflict
+			if res.Error == "not_found" || res.Error == "invalid_sector" {
+				status = http.StatusBadRequest
+			}
 		}
 		writeJSON(w, status, res)
 	}

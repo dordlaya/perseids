@@ -61,6 +61,9 @@ const (
 	jamReduction    = 0.25
 	jamDurationMs   = 60_000
 	jamCooldownMs   = 1_800_000
+	moveGravityMs   = 30_000
+	moveCooldownMs  = 300_000
+	sectorCapacity  = 10
 
 	gridCell = 120.0
 	// Dynamic user positions are sent at 15 Hz while the simulation continues
@@ -87,14 +90,16 @@ type User struct {
 	LastHeartbeatAt int64  // live presence timestamp; not persisted
 
 	// Live (not persisted)
-	PullForce float64
-	Pulse     float64
-	X, Y      float64 // world-space position
-	Sector    int
-	BoostAt   int64
-	Jams      map[int]int64 // attacker_id → activated_at_ms
-	LastJamAt int64
-	LastJamBy string
+	PullForce    float64
+	Pulse        float64
+	X, Y         float64 // world-space position
+	Sector       int
+	BoostAt      int64
+	GravityUntil int64
+	MoveReadyAt  int64
+	Jams         map[int]int64 // attacker_id → activated_at_ms
+	LastJamAt    int64
+	LastJamBy    string
 }
 
 // expireHeartbeats marks users dark when their client has stopped reporting.
@@ -138,20 +143,22 @@ type ProbeSnap struct {
 }
 
 type UserSnap struct {
-	ID        int     `json:"id"`
-	Name      string  `json:"name"`
-	X         float64 `json:"x"`
-	Y         float64 `json:"y"`
-	R         float64 `json:"r"`
-	Hits      int     `json:"hits"`
-	LoggedIn  bool    `json:"loggedIn"`
-	Pull      float64 `json:"pull"`
-	Pulse     float64 `json:"pulse"`
-	CreatedAt int64   `json:"createdAt"`
-	Sector    int     `json:"sector"`
-	BoostAt   int64   `json:"boostAt"`
-	LastJamAt int64   `json:"lastJamAt"`
-	LastJamBy string  `json:"lastJamBy"`
+	ID           int     `json:"id"`
+	Name         string  `json:"name"`
+	X            float64 `json:"x"`
+	Y            float64 `json:"y"`
+	R            float64 `json:"r"`
+	Hits         int     `json:"hits"`
+	LoggedIn     bool    `json:"loggedIn"`
+	Pull         float64 `json:"pull"`
+	Pulse        float64 `json:"pulse"`
+	CreatedAt    int64   `json:"createdAt"`
+	Sector       int     `json:"sector"`
+	BoostAt      int64   `json:"boostAt"`
+	GravityUntil int64   `json:"gravityUntil"`
+	MoveReadyAt  int64   `json:"moveReadyAt"`
+	LastJamAt    int64   `json:"lastJamAt"`
+	LastJamBy    string  `json:"lastJamBy"`
 }
 
 type WorldSnap struct {
@@ -218,6 +225,22 @@ type ResetResult struct {
 	OK bool `json:"ok"`
 }
 
+type SectorSnap struct {
+	ID        int    `json:"id"`
+	Name      string `json:"name"`
+	Occupied  int    `json:"occupied"`
+	Capacity  int    `json:"capacity"`
+	Available bool   `json:"available"`
+}
+
+type MoveResult struct {
+	OK           bool   `json:"ok"`
+	Error        string `json:"error,omitempty"`
+	Sector       int    `json:"sector,omitempty"`
+	GravityUntil int64  `json:"gravityUntil,omitempty"`
+	ReadyAt      int64  `json:"readyAt,omitempty"`
+}
+
 // ---------------------------------------------------------------------------
 // Sim
 // ---------------------------------------------------------------------------
@@ -278,9 +301,14 @@ func sectorOrigin(i int) (float64, float64) {
 }
 
 func (s *Sim) sectorCount() int {
-	n := int(math.Ceil(float64(len(s.users)) / starsPerSector))
+	n := int(math.Ceil(float64(len(s.users)) / sectorCapacity))
 	if n < 1 {
 		return 1
+	}
+	for _, u := range s.users {
+		if u.Sector+1 > n {
+			n = u.Sector + 1
+		}
 	}
 	return n
 }
@@ -298,12 +326,47 @@ func (s *Sim) worldSize() (float64, float64) {
 func (s *Sim) positionUsers() {
 	pad := sectorPad
 	span := sectorSize - pad*2
-	for i, u := range s.users {
-		u.Sector = i / starsPerSector
+	for _, u := range s.users {
 		ox, oy := sectorOrigin(u.Sector)
 		u.X = ox + pad + u.Fx*span
 		u.Y = oy + pad + u.Fy*span
 	}
+}
+
+func (s *Sim) sectorName(id int) string {
+	return fmt.Sprintf("Galaxy %d", id+1)
+}
+
+func (s *Sim) sectorOccupancy(id int) int {
+	n := 0
+	for _, u := range s.users {
+		if u.Sector == id {
+			n++
+		}
+	}
+	return n
+}
+
+func (s *Sim) sectors() []SectorSnap {
+	count := s.sectorCount() + 1
+	out := make([]SectorSnap, count)
+	for i := range out {
+		occupied := s.sectorOccupancy(i)
+		out[i] = SectorSnap{
+			ID: i, Name: s.sectorName(i), Occupied: occupied,
+			Capacity: sectorCapacity, Available: occupied < sectorCapacity,
+		}
+	}
+	return out
+}
+
+func (s *Sim) firstAvailableSector() int {
+	for _, sector := range s.sectors() {
+		if sector.Available {
+			return sector.ID
+		}
+	}
+	return s.sectorCount()
 }
 
 // placeStarFraction finds a fractional (fx,fy) in the given sector that
@@ -423,8 +486,9 @@ func (s *Sim) userFromRecord(rec UserRecord) *User {
 		ID: uid, Name: name, Fx: fx, Fy: fy, R: r, Hits: rec.Hits,
 		CreatedAt: ca, LoggedIn: rec.LoggedIn,
 		Email: strings.TrimSpace(rec.Email), Pw: rec.Pw,
-		PullForce: pull,
-		Jams:      make(map[int]int64),
+		PullForce: pull, Sector: rec.Sector,
+		GravityUntil: rec.GravityUntil, MoveReadyAt: rec.MoveReadyAt,
+		Jams: make(map[int]int64),
 	}
 }
 
@@ -458,7 +522,7 @@ func (s *Sim) Register(name, email, password string) RegisterResult {
 	if len(name) > 16 {
 		name = name[:16]
 	}
-	sector := len(s.users) / starsPerSector
+	sector := s.firstAvailableSector()
 	u := s.userFromRecord(UserRecord{
 		Name: name, Email: email, Pw: hashPassword(password),
 		LoggedIn: true, CreatedAt: nowMs(), R: userRadius,
@@ -554,7 +618,7 @@ func (s *Sim) activeJams(u *User, now int64) int {
 
 // pullTarget returns the pull force this star is easing toward.
 func (s *Sim) pullTarget(u *User, now int64) float64 {
-	if !u.LoggedIn {
+	if !u.LoggedIn || now < u.GravityUntil {
 		return 0.0
 	}
 	base := basePull
@@ -577,6 +641,9 @@ func (s *Sim) ActivateBoost(uid int) BoostResult {
 		}
 		if !u.LoggedIn {
 			return BoostResult{Error: "offline"}
+		}
+		if now < u.GravityUntil {
+			return BoostResult{Error: "in_transit"}
 		}
 		var readyAt int64
 		if u.BoostAt > 0 {
@@ -617,9 +684,13 @@ func (s *Sim) Jam(attackerID, targetID int) JamResult {
 	if attacker == nil || !attacker.LoggedIn {
 		return JamResult{Error: "offline"}
 	}
+	if now < attacker.GravityUntil {
+		return JamResult{Error: "in_transit"}
+	}
 	if last, ok := target.Jams[attackerID]; ok && now-last < jamCooldownMs {
 		return JamResult{Error: "cooldown", CooldownUntil: last + jamCooldownMs}
 	}
+
 	target.Jams[attackerID] = now
 	target.LastJamAt = now
 	target.LastJamBy = attacker.Name
@@ -628,6 +699,50 @@ func (s *Sim) Jam(attackerID, targetID int) JamResult {
 		OK:            true,
 		JamUntil:      now + jamDurationMs,
 		CooldownUntil: now + jamCooldownMs,
+	}
+}
+
+func (s *Sim) MoveUser(uid, destination int) MoveResult {
+	now := nowMs()
+	var user *User
+	for _, u := range s.users {
+		if u.ID == uid {
+			user = u
+			break
+		}
+	}
+	if user == nil {
+		return MoveResult{Error: "not_found"}
+	}
+	if !user.LoggedIn {
+		return MoveResult{Error: "offline"}
+	}
+	if destination < 0 || destination >= s.sectorCount()+1 {
+		return MoveResult{Error: "invalid_sector"}
+	}
+	if destination == user.Sector {
+		return MoveResult{Error: "already_here"}
+	}
+	if now < user.MoveReadyAt {
+		return MoveResult{Error: "cooldown", ReadyAt: user.MoveReadyAt}
+	}
+	if s.sectorOccupancy(destination) >= sectorCapacity {
+		return MoveResult{Error: "sector_full"}
+	}
+
+	user.Sector = destination
+	user.Fx, user.Fy = rand.Float64(), rand.Float64()
+	user.GravityUntil = now + moveGravityMs
+	user.MoveReadyAt = now + moveCooldownMs
+	user.BoostAt = 0
+	user.PullForce = 0
+	s.positionUsers()
+	s.gridDirty = true
+	s.rev++
+	s.markDirty(user.ID)
+	return MoveResult{
+		OK: true, Sector: destination,
+		GravityUntil: user.GravityUntil, ReadyAt: user.MoveReadyAt,
 	}
 }
 
@@ -893,7 +1008,8 @@ func (s *Sim) snapshot(includeUsers bool) Snapshot {
 				Pull:      math.Round(u.PullForce*1000) / 1000,
 				Pulse:     math.Round(u.Pulse*1000) / 1000,
 				CreatedAt: u.CreatedAt, Sector: u.Sector,
-				BoostAt: u.BoostAt, LastJamAt: u.LastJamAt, LastJamBy: u.LastJamBy,
+				BoostAt: u.BoostAt, GravityUntil: u.GravityUntil, MoveReadyAt: u.MoveReadyAt,
+				LastJamAt: u.LastJamAt, LastJamBy: u.LastJamBy,
 			}
 		}
 		snap.Users = users
@@ -920,9 +1036,9 @@ type rosterPayload struct {
 
 func (s *Sim) persistRecord(u *User) UserRecord {
 	return UserRecord{
-		ID: u.ID, Name: u.Name, Fx: u.Fx, Fy: u.Fy, R: u.R,
+		ID: u.ID, Name: u.Name, Fx: u.Fx, Fy: u.Fy, Sector: u.Sector, R: u.R,
 		Hits: u.Hits, CreatedAt: u.CreatedAt, LoggedIn: u.LoggedIn,
-		Email: u.Email, Pw: u.Pw,
+		Email: u.Email, Pw: u.Pw, GravityUntil: u.GravityUntil, MoveReadyAt: u.MoveReadyAt,
 	}
 }
 
@@ -988,6 +1104,23 @@ func (s *Sim) load() error {
 		s.users = append(s.users, u)
 		if u.ID > maxID {
 			maxID = u.ID
+		}
+		// Rosters written before sector persistence were ordered in groups of ten.
+		// Preserve that initial layout when every record still has the zero value.
+		if len(snap.Users) > 0 {
+			legacy := true
+			for _, rec := range snap.Users {
+				if rec.Sector != 0 {
+					legacy = false
+					break
+				}
+			}
+			if legacy {
+				for i, u := range s.users {
+					u.Sector = i / sectorCapacity
+				}
+				s.positionUsers()
+			}
 		}
 	}
 	// Never re-issue an id that already exists on disk / in Valkey.

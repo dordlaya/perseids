@@ -25,6 +25,8 @@ class UserSnap {
   final int createdAt;
   final int sector;
   final int boostAt;
+  final int gravityUntil;
+  final int moveReadyAt;
   final int lastJamAt;
   final String lastJamBy;
 
@@ -41,6 +43,8 @@ class UserSnap {
     required this.createdAt,
     required this.sector,
     required this.boostAt,
+    required this.gravityUntil,
+    required this.moveReadyAt,
     required this.lastJamAt,
     required this.lastJamBy,
   });
@@ -59,8 +63,37 @@ class UserSnap {
       createdAt: json['createdAt'] as int? ?? 0,
       sector: json['sector'] as int? ?? 0,
       boostAt: json['boostAt'] as int? ?? 0,
+      gravityUntil: json['gravityUntil'] as int? ?? 0,
+      moveReadyAt: json['moveReadyAt'] as int? ?? 0,
       lastJamAt: json['lastJamAt'] as int? ?? 0,
       lastJamBy: json['lastJamBy'] as String? ?? '',
+    );
+  }
+
+}
+
+class SectorSnap {
+  final int id;
+  final String name;
+  final int occupied;
+  final int capacity;
+  final bool available;
+
+  SectorSnap({
+    required this.id,
+    required this.name,
+    required this.occupied,
+    required this.capacity,
+    required this.available,
+  });
+
+  factory SectorSnap.fromJson(Map<String, dynamic> json) {
+    return SectorSnap(
+      id: json['id'] as int,
+      name: json['name'] as String,
+      occupied: json['occupied'] as int? ?? 0,
+      capacity: json['capacity'] as int? ?? 10,
+      available: json['available'] as bool? ?? false,
     );
   }
 }

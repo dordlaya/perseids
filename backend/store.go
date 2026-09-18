@@ -30,16 +30,19 @@ import (
 
 // UserRecord is the persisted subset of a User (no live/transient fields).
 type UserRecord struct {
-	ID        int     `json:"id"`
-	Name      string  `json:"name"`
-	Fx        float64 `json:"fx"`
-	Fy        float64 `json:"fy"`
-	R         float64 `json:"r"`
-	Hits      int     `json:"hits"`
-	CreatedAt int64   `json:"createdAt"`
-	LoggedIn  bool    `json:"loggedIn"`
-	Email     string  `json:"email"`
-	Pw        string  `json:"pw"`
+	ID           int     `json:"id"`
+	Name         string  `json:"name"`
+	Fx           float64 `json:"fx"`
+	Fy           float64 `json:"fy"`
+	Sector       int     `json:"sector,omitempty"`
+	R            float64 `json:"r"`
+	Hits         int     `json:"hits"`
+	CreatedAt    int64   `json:"createdAt"`
+	LoggedIn     bool    `json:"loggedIn"`
+	GravityUntil int64   `json:"gravityUntil,omitempty"`
+	MoveReadyAt  int64   `json:"moveReadyAt,omitempty"`
+	Email        string  `json:"email"`
+	Pw           string  `json:"pw"`
 }
 
 // RosterSnapshot is what Load() returns — rev counter, optional seq counter
@@ -69,8 +72,8 @@ type Store interface {
 	Mode() string     // "full" | "granular"
 	Describe() string // human-readable connection info for the startup banner
 	Load() (*RosterSnapshot, error)
-	SaveFull(data []byte) error          // used by JsonStore
-	SaveChanges(p ChangePayload) error   // used by ValkeyStore
+	SaveFull(data []byte) error        // used by JsonStore
+	SaveChanges(p ChangePayload) error // used by ValkeyStore
 }
 
 // ---------------------------------------------------------------------------
@@ -207,7 +210,10 @@ func (s *ValkeyStore) Load() (*RosterSnapshot, error) {
 			hits, _ := strconv.Atoi(h["hits"])
 			ca, _ := strconv.ParseInt(h["createdAt"], 10, 64)
 			snap.Users = append(snap.Users, UserRecord{
-				ID: id, Name: h["name"], Fx: fx, Fy: fy, R: r,
+				ID: id, Name: h["name"], Fx: fx, Fy: fy,
+				Sector:       atoiDefault(h["sector"]),
+				GravityUntil: int64Default(h["gravityUntil"]),
+				MoveReadyAt:  int64Default(h["moveReadyAt"]), R: r,
 				Hits: hits, CreatedAt: ca, LoggedIn: h["loggedIn"] == "1",
 				Email: h["email"], Pw: h["pw"],
 			})
@@ -236,8 +242,9 @@ func (s *ValkeyStore) SaveChanges(p ChangePayload) error {
 		}
 		pipe.HSet(ctx, s.k("user", strconv.Itoa(uid)), map[string]any{
 			"name": rec.Name, "fx": strconv.FormatFloat(rec.Fx, 'g', -1, 64),
-			"fy": strconv.FormatFloat(rec.Fy, 'g', -1, 64),
-			"r":  strconv.FormatFloat(rec.R, 'g', -1, 64),
+			"fy":     strconv.FormatFloat(rec.Fy, 'g', -1, 64),
+			"sector": rec.Sector, "gravityUntil": rec.GravityUntil, "moveReadyAt": rec.MoveReadyAt,
+			"r":    strconv.FormatFloat(rec.R, 'g', -1, 64),
 			"hits": rec.Hits, "createdAt": rec.CreatedAt,
 			"loggedIn": li, "email": rec.Email, "pw": rec.Pw,
 		})
@@ -245,6 +252,7 @@ func (s *ValkeyStore) SaveChanges(p ChangePayload) error {
 			pipe.RPush(ctx, s.k("order"), uid)
 			s.known[uid] = true
 		}
+
 	}
 	pipe.Set(ctx, s.k("rev"), p.Rev, 0)
 	pipe.Set(ctx, s.k("seq"), p.Seq, 0)
@@ -252,6 +260,16 @@ func (s *ValkeyStore) SaveChanges(p ChangePayload) error {
 		return fmt.Errorf("valkey save: %w", err)
 	}
 	return nil
+}
+
+func atoiDefault(value string) int {
+	n, _ := strconv.Atoi(value)
+	return n
+}
+
+func int64Default(value string) int64 {
+	n, _ := strconv.ParseInt(value, 10, 64)
+	return n
 }
 
 func (s *ValkeyStore) clear(ctx context.Context) {

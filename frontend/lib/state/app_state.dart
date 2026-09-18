@@ -37,6 +37,7 @@ class AppState extends ChangeNotifier {
   WorldSnap world = WorldSnap(w: 0, h: 0);
 
   List<UserSnap> users = [];
+  List<SectorSnap> sectors = [];
   List<DisplayProbe> probes = [];
   Map<int, DisplayProbe> _probeById = {};
   
@@ -162,6 +163,11 @@ class AppState extends ChangeNotifier {
     } catch (_) {
       return null;
     }
+  }
+
+  Future<void> refreshSectors() async {
+    sectors = await api.getSectors();
+    notifyListeners();
   }
   
   void stepDisplay(double dt) {
