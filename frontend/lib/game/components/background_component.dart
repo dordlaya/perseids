@@ -27,10 +27,10 @@ class BackgroundComponent extends Component {
 
     for (final cfg in layers) {
       final int count  = cfg[0].toInt();
-      final double rMin = cfg[1];
-      final double rMax = cfg[2];
-      final double aMin = cfg[3];
-      final double aMax = cfg[4];
+      final double rMin = cfg[1].toDouble();
+      final double rMax = cfg[2].toDouble();
+      final double aMin = cfg[3].toDouble();
+      final double aMax = cfg[4].toDouble();
 
       for (int s = 0; s < count; s++) {
         // slight hue variety: blue-ish, warm, or white
