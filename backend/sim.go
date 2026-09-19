@@ -333,8 +333,21 @@ func (s *Sim) positionUsers() {
 	}
 }
 
+var sectorWords = []string{
+	"Andromeda", "Cygnus", "Draco", "Eridanus", "Fornax", "Hydra", "Indus", "Lyra",
+	"Orion", "Perseus", "Phoenix", "Serpens", "Tucana", "Vela", "Carina", "Pyxis",
+}
+
 func (s *Sim) sectorName(id int) string {
-	return fmt.Sprintf("Galaxy %d", id+1)
+	if id < 0 || len(sectorWords) == 0 {
+		return fmt.Sprintf("Galaxy %d", id+1)
+	}
+	base := sectorWords[id%len(sectorWords)]
+	tier := id / len(sectorWords)
+	if tier > 0 {
+		return fmt.Sprintf("%s-%d", base, tier+1)
+	}
+	return base
 }
 
 func (s *Sim) sectorOccupancy(id int) int {
@@ -348,7 +361,7 @@ func (s *Sim) sectorOccupancy(id int) int {
 }
 
 func (s *Sim) sectors() []SectorSnap {
-	count := s.sectorCount() + 1
+	count := s.sectorCount()
 	out := make([]SectorSnap, count)
 	for i := range out {
 		occupied := s.sectorOccupancy(i)
@@ -720,7 +733,7 @@ func (s *Sim) MoveUser(uid, destination int) MoveResult {
 	if !user.LoggedIn {
 		return MoveResult{Error: "offline"}
 	}
-	if destination < 0 || destination >= s.sectorCount()+1 {
+	if destination < 0 || destination >= s.sectorCount() {
 		return MoveResult{Error: "invalid_sector"}
 	}
 	if destination == user.Sector {

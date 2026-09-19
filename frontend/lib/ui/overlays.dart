@@ -676,6 +676,13 @@ class StarInfoOverlay extends StatelessWidget {
                     style: TextStyle(color: spaceTextSecondary, fontSize: 12),
                   ),
                   const SizedBox(height: 12),
+                  if (state.sectors
+                      .where((sector) => sector.id != user.sector)
+                      .isEmpty)
+                    const Text(
+                      'No other galaxies exist yet.',
+                      style: TextStyle(color: spaceTextSecondary, fontSize: 12),
+                    ),
                   ...state.sectors
                       .where((sector) => sector.id != user.sector)
                       .map(
@@ -686,7 +693,7 @@ class StarInfoOverlay extends StatelessWidget {
                               ? (value) => setState(() => selected = value)
                               : null,
                           title: Text(
-                            sector.name,
+                            getSectorName(sector.id),
                             style: const TextStyle(color: spaceTextPrimary),
                           ),
                           subtitle: Text(
