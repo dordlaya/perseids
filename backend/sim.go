@@ -393,7 +393,7 @@ func (s *Sim) placeStarFraction(sectorIdx int) (float64, float64) {
 	var others []*User
 	for _, u := range s.users {
 		if u.Sector == sectorIdx {
-			tothers = append(others, u)
+			others = append(others, u)
 		}
 	}
 	bestFx, bestFy := rand.Float64(), rand.Float64()
@@ -1149,4 +1149,3 @@ func (s *Sim) load() error {
 	}
 	return nil
 }
-
