@@ -393,7 +393,7 @@ func (s *Sim) placeStarFraction(sectorIdx int) (float64, float64) {
 	var others []*User
 	for _, u := range s.users {
 		if u.Sector == sectorIdx {
-			others = append(others, u)
+			tothers = append(others, u)
 		}
 	}
 	bestFx, bestFy := rand.Float64(), rand.Float64()
@@ -539,6 +539,7 @@ func (s *Sim) Register(name, email, password string) RegisterResult {
 	u := s.userFromRecord(UserRecord{
 		Name: name, Email: email, Pw: hashPassword(password),
 		LoggedIn: true, CreatedAt: nowMs(), R: userRadius,
+		Sector: sector,
 	})
 	u.LastHeartbeatAt = nowMs()
 	u.Fx, u.Fy = s.placeStarFraction(sector)
@@ -1148,3 +1149,4 @@ func (s *Sim) load() error {
 	}
 	return nil
 }
+
