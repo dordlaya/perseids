@@ -632,7 +632,7 @@ class StarInfoOverlay extends StatelessWidget {
                       side: const BorderSide(color: spaceDanger),
                       minimumSize: const Size.fromHeight(38),
                     ),
-                    onPressed: !u.loggedIn || arriving
+                    onPressed: !u.loggedIn || arriving || jammed
                         ? null
                         : () => state.api.jam(u.id),
                     child: const Text('Jam −25%'),
@@ -998,45 +998,38 @@ class _SearchOverlayState extends State<SearchOverlay> {
                         onTap: () => _pick(state, res),
                         child: Padding(
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 16.0,
-                            vertical: 12.0,
+                            horizontal: 12.0,
+                            vertical: 8.0,
                           ),
                           child: Row(
                             children: [
-                              Container(
-                                width: 8,
-                                height: 8,
-                                margin: const EdgeInsets.only(right: 12),
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: res['kind'] == 'star'
-                                      ? spaceStar
-                                      : spaceAccent,
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: res['kind'] == 'star'
-                                          ? spaceStar
-                                          : spaceAccent,
-                                      blurRadius: 4,
+                              Icon(
+                                res['kind'] == 'sector'
+                                    ? Icons.travel_explore
+                                    : Icons.star,
+                                color: spaceAccent,
+                                size: 16,
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      res['label'],
+                                      style: const TextStyle(
+                                        color: spaceTextPrimary,
+                                        fontSize: 12.5,
+                                      ),
+                                    ),
+                                    Text(
+                                      res['sub'],
+                                      style: const TextStyle(
+                                        color: spaceTextSecondary,
+                                        fontSize: 10.5,
+                                      ),
                                     ),
                                   ],
-                                ),
-                              ),
-                              Expanded(
-                                child: Text(
-                                  res['label'],
-                                  style: const TextStyle(
-                                    color: spaceTextPrimary,
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ),
-                              Text(
-                                res['sub'],
-                                style: const TextStyle(
-                                  color: spaceTextSecondary,
-                                  fontSize: 11,
                                 ),
                               ),
                             ],
