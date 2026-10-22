@@ -721,6 +721,9 @@ func (s *Sim) ActivateBoost(uid int) BoostResult {
 		if now < u.GravityUntil {
 			return BoostResult{Error: "in_transit"}
 		}
+		if s.activeJams(u, now) > 0 {
+			return BoostResult{Error: "jammed"}
+		}
 		var readyAt int64
 		if u.BoostAt > 0 {
 			readyAt = u.BoostAt + boostCooldownMs
@@ -766,6 +769,9 @@ func (s *Sim) Jam(attackerID, targetID int) JamResult {
 	}
 	if now < attacker.GravityUntil {
 		return JamResult{Error: "in_transit"}
+	}
+	if target.BoostAt > 0 && now-target.BoostAt < boostDurationMs {
+		return JamResult{Error: "target_boosted"}
 	}
 	if last, ok := target.Jams[attackerID]; ok && now-last < jamCooldownMs {
 		return JamResult{Error: "cooldown", CooldownUntil: last + jamCooldownMs}

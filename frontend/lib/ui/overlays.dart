@@ -742,16 +742,19 @@ class StarInfoOverlay extends StatelessWidget {
 
     final now = DateTime.now().millisecondsSinceEpoch;
     final jammed = u.lastJamAt > 0 && (now - u.lastJamAt) < 60000;
+    final boosted = u.boostAt > 0 && (now - u.boostAt) < 60000;
     final arriving = u.gravityUntil > now;
 
     final statusColor = arriving
         ? spaceAccent
+        : boosted
+        ? spaceStar
         : jammed
         ? spaceDanger
         : (u.loggedIn ? spaceOnline : spaceOffline);
     final statusText =
         (u.loggedIn ? 'online' : 'offline') +
-        (arriving ? ' · arriving' : (jammed ? ' · jammed' : ''));
+        (arriving ? ' · arriving' : (boosted ? ' · boosted' : (jammed ? ' · jammed' : '')));
     final isMobile = MediaQuery.of(context).size.width < 600;
 
     return Positioned(
@@ -853,16 +856,26 @@ class StarInfoOverlay extends StatelessWidget {
                   const SizedBox(height: 8),
                   ElevatedButton(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: spaceDanger.withOpacity(0.2),
-                      foregroundColor: spaceDanger,
+                      backgroundColor: boosted
+                          ? spaceStar.withOpacity(0.12)
+                          : spaceDanger.withOpacity(0.2),
+                      foregroundColor: boosted ? spaceStar : spaceDanger,
                       elevation: 0,
-                      side: const BorderSide(color: spaceDanger),
+                      side: BorderSide(
+                        color: boosted
+                            ? spaceStar.withOpacity(0.5)
+                            : spaceDanger,
+                      ),
                       minimumSize: const Size.fromHeight(38),
                     ),
-                    onPressed: !u.loggedIn || arriving || jammed
+                    onPressed: !u.loggedIn || arriving || jammed || boosted
                         ? null
                         : () => state.api.jam(u.id),
-                    child: const Text('Jam −25%'),
+                    child: Text(
+                      boosted
+                          ? 'Boosted (Immune)'
+                          : (jammed ? 'Jammed (−25%)' : 'Jam −25%'),
+                    ),
                   ),
                 ],
               ],
@@ -1020,15 +1033,17 @@ class ControlsOverlay extends StatelessWidget {
     final now = DateTime.now().millisecondsSinceEpoch;
     bool isBoosting = false;
     bool canBoost = false;
+    bool isJammed = false;
     int cooldown = 0;
 
     if (me != null && me.loggedIn) {
       final at = me.boostAt;
+      isJammed = me.lastJamAt > 0 && (now - me.lastJamAt) < 60000;
       if (now - at < 60000) {
         isBoosting = true;
       } else if (now < at + 600000) {
         cooldown = (at + 600000) - now;
-      } else {
+      } else if (!isJammed) {
         canBoost = true;
       }
     }
@@ -1041,19 +1056,35 @@ class ControlsOverlay extends StatelessWidget {
           if (state.sessionUserId != null)
             Padding(
               padding: const EdgeInsets.only(bottom: 10.0),
-              child: FloatingActionButton(
-                mini: true,
-                backgroundColor: isBoosting ? spaceDanger : spaceBg,
-                foregroundColor: isBoosting
-                    ? Colors.white
-                    : (canBoost ? spaceAccent : spaceTextSecondary),
-                elevation: 4,
-                onPressed: canBoost
-                    ? () => state.api.boost()
-                    : null,
-                child: Text(
-                  cooldown > 0 ? fmtClock(cooldown) : '⚡',
-                  style: TextStyle(fontSize: cooldown > 0 ? 11 : 22),
+              child: Tooltip(
+                message: isJammed
+                    ? 'Cannot boost while jammed'
+                    : (canBoost ? 'Activate Boost (+100% pull)' : 'Boost'),
+                child: FloatingActionButton(
+                  mini: true,
+                  backgroundColor: isBoosting
+                      ? spaceDanger
+                      : (isJammed ? const Color(0x662A0D0D) : spaceBg),
+                  foregroundColor: isBoosting
+                      ? Colors.white
+                      : (isJammed
+                          ? spaceDanger.withOpacity(0.5)
+                          : (canBoost ? spaceAccent : spaceTextSecondary)),
+                  elevation: 4,
+                  onPressed: canBoost
+                      ? () => state.api.boost()
+                      : null,
+                  child: Text(
+                    cooldown > 0
+                        ? fmtClock(cooldown)
+                        : (isJammed ? '🚫' : '⚡'),
+                    style: TextStyle(
+                      fontSize: cooldown > 0 ? 11 : (isJammed ? 16 : 22),
+                      color: isJammed && !isBoosting
+                          ? spaceDanger.withOpacity(0.7)
+                          : null,
+                    ),
+                  ),
                 ),
               ),
             ),
