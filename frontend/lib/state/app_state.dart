@@ -26,6 +26,14 @@ class DisplayProbe {
 }
 
 class AppState extends ChangeNotifier {
+  // Keep the previous account online while switching users during
+  // development. Set PRESERVE_USERS_ON_LOGOUT=false to revoke the session
+  // and mark the user offline immediately instead.
+  static const bool preserveUsersOnLogout = bool.fromEnvironment(
+    'PRESERVE_USERS_ON_LOGOUT',
+    defaultValue: true,
+  );
+
   final ApiClient api = ApiClient();
 
   bool isConnected = false;
@@ -122,9 +130,11 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Logs out: revokes the token server-side, then clears local state.
+  /// Ends the local session, optionally preserving server-side presence.
   Future<void> logout() async {
-    await api.logout();
+    if (!preserveUsersOnLogout) {
+      await api.logout();
+    }
     clearSession();
   }
 

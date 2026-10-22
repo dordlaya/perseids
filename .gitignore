@@ -1,0 +1,7 @@
+# Local build outputs
+/backend/server
+/backend/backend.exe
+/frontend/build/
+
+# Local game data
+/backend/data/roster.json

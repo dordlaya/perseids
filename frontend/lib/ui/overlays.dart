@@ -324,9 +324,9 @@ class SessionBarOverlay extends StatelessWidget {
                   ),
                   const SizedBox(width: 12),
                   InkWell(
-                    onTap: () => state.clearSession(),
+                    onTap: () => state.logout(),
                     child: const Text(
-                      'Log Out',
+                      AppState.preserveUsersOnLogout ? 'Switch User' : 'Log Out',
                       style: TextStyle(color: spaceTextSecondary, fontSize: 12),
                     ),
                   ),
@@ -1529,13 +1529,24 @@ class _TopNavOverlayState extends State<TopNavOverlay> {
                       ),
                     ),
                     const PopupMenuDivider(),
-                    const PopupMenuItem(
+                    PopupMenuItem(
                       value: 'logout',
                       child: Row(
                         children: [
-                          Icon(Icons.logout, size: 16, color: spaceDanger),
+                          Icon(
+                            AppState.preserveUsersOnLogout
+                                ? Icons.switch_account
+                                : Icons.logout,
+                            size: 16,
+                            color: spaceDanger,
+                          ),
                           SizedBox(width: 8),
-                          Text('Log Out', style: TextStyle(color: spaceDanger, fontSize: 13)),
+                          Text(
+                            AppState.preserveUsersOnLogout
+                                ? 'Switch User'
+                                : 'Log Out',
+                            style: TextStyle(color: spaceDanger, fontSize: 13),
+                          ),
                         ],
                       ),
                     ),
