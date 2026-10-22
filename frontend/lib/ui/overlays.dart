@@ -748,8 +748,89 @@ class StarInfoOverlay extends StatelessWidget {
         : (u.loggedIn ? spaceOnline : spaceOffline);
     final statusText =
         (u.loggedIn ? 'online' : 'offline') +
-        (arriving ? ' · arriving' : (boosted ? ' · boosted' : (jammed ? ' · jammed' : '')));
+        (arriving
+            ? ' · arriving'
+            : (boosted ? ' · boosted' : (jammed ? ' · jammed' : '')));
     final isMobile = MediaQuery.of(context).size.width < 600;
+    final panelHeight = MediaQuery.sizeOf(context).height * 0.62;
+
+    final details = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _infoRow('sector', getSectorName(u.sector)),
+        _infoRow('status', statusText, valColor: statusColor),
+        if (arriving)
+          _infoRow(
+            'gravity',
+            'offline · ${fmtClock(u.gravityUntil - now)}',
+            valColor: spaceAccent,
+          ),
+        _infoRow('pull force', '${(u.pull * 100).round()}%'),
+        _infoRow('age', formatDuration(now - u.createdAt)),
+        _infoRow('absorbed', '${u.hits}'),
+        _infoRow('size', '${u.r.toStringAsFixed(1)} px'),
+        _infoRow('class', starTierName(u.r)),
+        _infoRow('growth', '+${(u.r - 10.0).toStringAsFixed(1)} px'),
+        _infoRow(
+          'position',
+          '${u.x.toStringAsFixed(0)}, ${u.y.toStringAsFixed(0)}',
+        ),
+        if (u.id == state.sessionUserId) ...[
+          const SizedBox(height: 12),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: spaceStar,
+              foregroundColor: const Color(0xFF050C1A),
+              minimumSize: const Size.fromHeight(38),
+            ),
+            onPressed: () => state.api.setStatus(!u.loggedIn),
+            child: Text(u.loggedIn ? 'Go Dark' : 'Go Live'),
+          ),
+          const SizedBox(height: 8),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: spaceAccent.withOpacity(0.16),
+              foregroundColor: spaceAccent,
+              elevation: 0,
+              side: const BorderSide(color: spaceAccent),
+              minimumSize: const Size.fromHeight(38),
+            ),
+            onPressed: !u.loggedIn || u.moveReadyAt > now
+                ? null
+                : () => _openMoveDialog(context, state, u),
+            child: Text(
+              u.moveReadyAt > now
+                  ? 'Move cooldown · ${fmtClock(u.moveReadyAt - now)}'
+                  : 'Move to another galaxy',
+            ),
+          ),
+        ],
+        if (state.sessionUserId != null && u.id != state.sessionUserId) ...[
+          const SizedBox(height: 8),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: boosted
+                  ? spaceStar.withOpacity(0.12)
+                  : spaceDanger.withOpacity(0.2),
+              foregroundColor: boosted ? spaceStar : spaceDanger,
+              elevation: 0,
+              side: BorderSide(
+                color: boosted ? spaceStar.withOpacity(0.5) : spaceDanger,
+              ),
+              minimumSize: const Size.fromHeight(38),
+            ),
+            onPressed: !u.loggedIn || arriving || jammed || boosted
+                ? null
+                : () => state.api.jam(u.id),
+            child: Text(
+              boosted
+                  ? 'Boosted (Immune)'
+                  : (jammed ? 'Jammed (−25%)' : 'Jam −25%'),
+            ),
+          ),
+        ],
+      ],
+    );
 
     return Positioned(
       left: isMobile ? 76 : null,
@@ -761,117 +842,95 @@ class StarInfoOverlay extends StatelessWidget {
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
           child: Container(
-            padding: const EdgeInsets.all(16),
+            constraints: isMobile
+                ? BoxConstraints(maxHeight: panelHeight)
+                : const BoxConstraints(),
             decoration: _glassDecoration(),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        u.name,
-                        style: const TextStyle(
-                          color: spaceStar,
-                          fontSize: 16,
-                          letterSpacing: 1.0,
-                          fontWeight: FontWeight.w500,
+                Padding(
+                  padding: const EdgeInsets.only(
+                    left: 12,
+                    top: 4,
+                    bottom: 4,
+                    right: 4,
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 28,
+                        height: 28,
+                        decoration: BoxDecoration(
+                          color: spaceAccent.withOpacity(0.16),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: spaceAccent.withOpacity(0.4),
+                          ),
                         ),
-                        overflow: TextOverflow.ellipsis,
+                        child: const Icon(
+                          Icons.auto_awesome,
+                          color: spaceAccent,
+                          size: 15,
+                        ),
                       ),
-                    ),
-                    InkWell(
-                      onTap: () {
-                        state.selectedUserId = null;
-                        state.notifyListeners();
-                      },
-                      child: const Icon(
-                        Icons.close,
-                        color: spaceTextSecondary,
-                        size: 16,
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'STAR PROFILE',
+                              style: TextStyle(
+                                color: spaceTextSecondary,
+                                fontSize: 9,
+                                letterSpacing: 1.4,
+                              ),
+                            ),
+                            Text(
+                              u.name,
+                              style: const TextStyle(
+                                color: spaceStar,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
+                      IconButton(
+                        tooltip: 'Close star info',
+                        constraints: const BoxConstraints(
+                          minWidth: 48,
+                          minHeight: 48,
+                        ),
+                        padding: EdgeInsets.zero,
+                        icon: const Icon(
+                          Icons.close,
+                          color: spaceTextSecondary,
+                          size: 20,
+                        ),
+                        onPressed: () {
+                          state.selectedUserId = null;
+                          state.notifyListeners();
+                        },
+                      ),
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 12),
-                _infoRow('sector', getSectorName(u.sector)),
-                _infoRow('status', statusText, valColor: statusColor),
-                if (arriving)
-                  _infoRow(
-                    'gravity',
-                    'offline · ${fmtClock(u.gravityUntil - now)}',
-                    valColor: spaceAccent,
-                  ),
-                _infoRow('pull force', '${(u.pull * 100).round()}%'),
-                _infoRow('age', formatDuration(now - u.createdAt)),
-                _infoRow('absorbed', '${u.hits}'),
-                _infoRow('size', '${u.r.toStringAsFixed(1)} px'),
-                _infoRow('class', starTierName(u.r)),
-                _infoRow('growth', '+${(u.r - 10.0).toStringAsFixed(1)} px'),
-                _infoRow(
-                  'position',
-                  '${u.x.toStringAsFixed(0)}, ${u.y.toStringAsFixed(0)}',
-                ),
-
-                if (u.id == state.sessionUserId) ...[
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: spaceStar,
-                      foregroundColor: const Color(0xFF050C1A),
-                      minimumSize: const Size.fromHeight(38),
+                const Divider(color: spaceBorder, height: 1),
+                if (isMobile)
+                  Flexible(
+                    fit: FlexFit.loose,
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+                      child: details,
                     ),
-                    onPressed: () => state.api.setStatus(!u.loggedIn),
-                    child: Text(u.loggedIn ? 'Go Dark' : 'Go Live'),
-                  ),
-                  const SizedBox(height: 8),
-                  ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: spaceAccent.withOpacity(0.16),
-                      foregroundColor: spaceAccent,
-                      elevation: 0,
-                      side: const BorderSide(color: spaceAccent),
-                      minimumSize: const Size.fromHeight(38),
-                    ),
-                    onPressed: !u.loggedIn || u.moveReadyAt > now
-                        ? null
-                        : () => _openMoveDialog(context, state, u),
-                    child: Text(
-                      u.moveReadyAt > now
-                          ? 'Move cooldown · ${fmtClock(u.moveReadyAt - now)}'
-                          : 'Move to another galaxy',
-                    ),
-                  ),
-                ],
-
-                if (state.sessionUserId != null &&
-                    u.id != state.sessionUserId) ...[
-                  const SizedBox(height: 8),
-                  ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: boosted
-                          ? spaceStar.withOpacity(0.12)
-                          : spaceDanger.withOpacity(0.2),
-                      foregroundColor: boosted ? spaceStar : spaceDanger,
-                      elevation: 0,
-                      side: BorderSide(
-                        color: boosted
-                            ? spaceStar.withOpacity(0.5)
-                            : spaceDanger,
-                      ),
-                      minimumSize: const Size.fromHeight(38),
-                    ),
-                    onPressed: !u.loggedIn || arriving || jammed || boosted
-                        ? null
-                        : () => state.api.jam(u.id),
-                    child: Text(
-                      boosted
-                          ? 'Boosted (Immune)'
-                          : (jammed ? 'Jammed (−25%)' : 'Jam −25%'),
-                    ),
-                  ),
-                ],
+                  )
+                else
+                  Padding(padding: const EdgeInsets.all(12), child: details),
               ],
             ),
           ),
@@ -965,7 +1024,8 @@ class StarInfoOverlay extends StatelessWidget {
                           if (context.mounted) {
                             setState(() {
                               submitting = false;
-                              error = result['error']?.toString() ?? 'move_failed';
+                              error =
+                                  result['error']?.toString() ?? 'move_failed';
                             });
                           }
                         }
@@ -983,17 +1043,24 @@ class StarInfoOverlay extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3.0),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            label,
-            style: const TextStyle(color: spaceTextSecondary, fontSize: 11.5),
+          Expanded(
+            child: Text(
+              label,
+              style: const TextStyle(color: spaceTextSecondary, fontSize: 11.5),
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
-          Text(
-            value,
-            style: TextStyle(
-              color: valColor ?? spaceTextPrimary,
-              fontSize: 11.5,
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              value,
+              style: TextStyle(
+                color: valColor ?? spaceTextPrimary,
+                fontSize: 11.5,
+              ),
+              textAlign: TextAlign.right,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
         ],
