@@ -69,25 +69,11 @@ class _GameScreenState extends State<GameScreen> {
           // UI Overlays
           HudOverlay(),
           SessionBarOverlay(),
-          LeaderboardOverlay(game: _game),
-          EventHistoryOverlay(game: _game),
-          SearchOverlay(game: _game),
+          GamePanelOverlay(game: _game),
+          TopNavOverlay(game: _game),
           StarInfoOverlay(),
           ControlsOverlay(game: _game),
           const JamToastOverlay(),
-
-          // Add button
-          Positioned(
-            top: 16,
-            right: 16,
-            child: IconButton(
-              icon: const Icon(Icons.person_add),
-              onPressed: () {
-                context.read<AppState>().showLoginModal = true;
-                context.read<AppState>().notifyListeners();
-              },
-            ),
-          ),
 
           // Modals
           LoginOverlay(game: _game),

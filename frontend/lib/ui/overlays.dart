@@ -301,9 +301,10 @@ class SessionBarOverlay extends StatelessWidget {
     final state = context.watch<AppState>();
     if (state.sessionUserId == null) return const SizedBox.shrink();
     final isMobile = MediaQuery.of(context).size.width < 600;
+    if (isMobile) return const SizedBox.shrink();
 
     return Positioned(
-      top: isMobile ? 120 : 14,
+      top: 14,
       left: 0,
       right: 0,
       child: Center(
@@ -340,183 +341,20 @@ class SessionBarOverlay extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Leaderboard
+// Unified Left Panel: Leaderboard + Activity Log
 // ---------------------------------------------------------------------------
 
-class LeaderboardOverlay extends StatefulWidget {
+class GamePanelOverlay extends StatefulWidget {
   final SpaceMapGame? game;
-  const LeaderboardOverlay({this.game});
+  const GamePanelOverlay({super.key, this.game});
 
   @override
-  _LeaderboardOverlayState createState() => _LeaderboardOverlayState();
+  State<GamePanelOverlay> createState() => _GamePanelOverlayState();
 }
 
-class _LeaderboardOverlayState extends State<LeaderboardOverlay> {
+class _GamePanelOverlayState extends State<GamePanelOverlay> {
   bool expanded = false;
-
-  void _focusUser(AppState state, int id) {
-    final u = state.getUserById(id);
-    if (u != null && widget.game != null) {
-      widget.game!.moveCameraTo(Vector2(u.x, u.y), zoom: 1.8);
-      state.selectedUserId = u.id;
-      state.notifyListeners();
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final state = context.watch<AppState>();
-    final isMobile = MediaQuery.of(context).size.width < 600;
-
-    final sortedUsers = List.of(state.users)
-      ..sort((a, b) => b.r.compareTo(a.r));
-    final top10 = sortedUsers.take(10).toList();
-
-    return Positioned(
-      top: isMobile ? 16 : 56,
-      right: 16,
-      width: isMobile ? 160 : 240,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(12),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
-          child: Container(
-            decoration: _glassDecoration(),
-            child: Column(
-              children: [
-                InkWell(
-                  onTap: () => setState(() => expanded = !expanded),
-                  child: Padding(
-                    padding: const EdgeInsets.all(12.0),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text(
-                          '🏆 Leaderboard',
-                          style: TextStyle(
-                            color: spaceTextPrimary,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        Icon(
-                          expanded
-                              ? Icons.keyboard_arrow_down
-                              : Icons.keyboard_arrow_left,
-                          color: spaceTextSecondary,
-                          size: 16,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                if (expanded)
-                  Container(
-                    constraints: const BoxConstraints(maxHeight: 400),
-                    child: ListView.builder(
-                      shrinkWrap: true,
-                      itemCount: top10.length,
-                      itemBuilder: (context, i) {
-                        final u = top10[i];
-                        return InkWell(
-                          onTap: () => _focusUser(state, u.id),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12.0,
-                              vertical: 6.0,
-                            ),
-                            child: Row(
-                              children: [
-                                SizedBox(
-                                  width: 24,
-                                  child: Text(
-                                    '${i + 1}',
-                                    style: const TextStyle(
-                                      color: spaceTextSecondary,
-                                      fontSize: 11,
-                                    ),
-                                  ),
-                                ),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        u.name,
-                                        style: const TextStyle(
-                                          color: spaceTextPrimary,
-                                          fontSize: 12.5,
-                                        ),
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                      Text(
-                                        getSectorName(u.sector),
-                                        style: const TextStyle(
-                                          color: spaceTextSecondary,
-                                          fontSize: 10.5,
-                                        ),
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                Text(
-                                  '${u.r.toStringAsFixed(1)}px',
-                                  style: const TextStyle(
-                                    color: spaceStar,
-                                    fontSize: 11.5,
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Container(
-                                  width: 6,
-                                  height: 6,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: u.loggedIn
-                                        ? spaceOnline
-                                        : spaceOffline,
-                                    boxShadow: u.loggedIn
-                                        ? const [
-                                            BoxShadow(
-                                              color: spaceOnline,
-                                              blurRadius: 4,
-                                            ),
-                                          ]
-                                        : null,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Event History (Activity Log)
-// ---------------------------------------------------------------------------
-
-class EventHistoryOverlay extends StatefulWidget {
-  final SpaceMapGame? game;
-  const EventHistoryOverlay({super.key, this.game});
-
-  @override
-  State<EventHistoryOverlay> createState() => _EventHistoryOverlayState();
-}
-
-class _EventHistoryOverlayState extends State<EventHistoryOverlay> {
-  bool expanded = false;
+  int activeTab = 0; // 0 = Leaders, 1 = Log
 
   void _focusUser(AppState state, int id) {
     final u = state.getUserById(id);
@@ -578,6 +416,12 @@ class _EventHistoryOverlayState extends State<EventHistoryOverlay> {
     final state = context.watch<AppState>();
     final isMobile = MediaQuery.of(context).size.width < 600;
 
+    // Leaderboard data
+    final sortedUsers = List.of(state.users)
+      ..sort((a, b) => b.r.compareTo(a.r));
+    final top10 = sortedUsers.take(10).toList();
+
+    // Event history data
     UserSnap? targetUser;
     if (state.selectedUserId != null) {
       targetUser = state.getUserById(state.selectedUserId!);
@@ -586,14 +430,13 @@ class _EventHistoryOverlayState extends State<EventHistoryOverlay> {
     if (targetUser == null && state.users.isNotEmpty) {
       targetUser = state.users.first;
     }
-
     final events = targetUser != null ? List<UserEvent>.from(targetUser.events.reversed) : <UserEvent>[];
-    final titleName = targetUser != null ? targetUser.name : 'No Star';
+    final logTargetName = targetUser != null ? targetUser.name : 'No Star';
 
     return Positioned(
-      top: isMobile ? 140 : 155,
+      top: isMobile ? 122 : 130,
       left: 16,
-      width: isMobile ? 190 : 260,
+      width: isMobile ? 220 : 255,
       child: ClipRRect(
         borderRadius: BorderRadius.circular(12),
         child: BackdropFilter(
@@ -602,122 +445,269 @@ class _EventHistoryOverlayState extends State<EventHistoryOverlay> {
             decoration: _glassDecoration(),
             child: Column(
               mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                InkWell(
-                  onTap: () => setState(() => expanded = !expanded),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 10.0),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Expanded(
-                          child: Row(
-                            children: [
-                              const Text(
-                                '📜 Log',
-                                style: TextStyle(
-                                  color: spaceTextPrimary,
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                              const SizedBox(width: 6),
-                              Expanded(
-                                child: Text(
-                                  '· $titleName',
-                                  style: const TextStyle(
-                                    color: spaceAccent,
-                                    fontSize: 12,
+                // Header / Tab Switcher
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                  child: Row(
+                    children: [
+                      // Tab 0: Leaders
+                      InkWell(
+                        borderRadius: BorderRadius.circular(8),
+                        onTap: () {
+                          setState(() {
+                            if (!expanded) {
+                              expanded = true;
+                              activeTab = 0;
+                            } else if (activeTab == 0) {
+                              expanded = false;
+                            } else {
+                              activeTab = 0;
+                            }
+                          });
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          decoration: expanded && activeTab == 0
+                              ? BoxDecoration(
+                                  color: spaceAccent.withOpacity(0.18),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: spaceAccent.withOpacity(0.4)),
+                                )
+                              : null,
+                          child: const Text(
+                            '🏆 Leaders',
+                            style: TextStyle(
+                              color: spaceTextPrimary,
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      // Tab 1: Log
+                      InkWell(
+                        borderRadius: BorderRadius.circular(8),
+                        onTap: () {
+                          setState(() {
+                            if (!expanded) {
+                              expanded = true;
+                              activeTab = 1;
+                            } else if (activeTab == 1) {
+                              expanded = false;
+                            } else {
+                              activeTab = 1;
+                            }
+                          });
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          decoration: expanded && activeTab == 1
+                              ? BoxDecoration(
+                                  color: spaceAccent.withOpacity(0.18),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: spaceAccent.withOpacity(0.4)),
+                                )
+                              : null,
+                          child: const Text(
+                            '📜 Log',
+                            style: TextStyle(
+                              color: spaceTextPrimary,
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const Spacer(),
+                      // Chevron toggle
+                      IconButton(
+                        iconSize: 16,
+                        splashRadius: 16,
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                        icon: Icon(
+                          expanded ? Icons.keyboard_arrow_down : Icons.keyboard_arrow_right,
+                          color: spaceTextSecondary,
+                        ),
+                        onPressed: () => setState(() => expanded = !expanded),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Expanded Content Body
+                if (expanded) ...[
+                  const Divider(color: spaceBorder, height: 1),
+                  if (activeTab == 0)
+                    // LEADERBOARD VIEW
+                    Container(
+                      constraints: BoxConstraints(maxHeight: isMobile ? 240 : 360),
+                      child: top10.isEmpty
+                          ? const Padding(
+                              padding: EdgeInsets.all(16.0),
+                              child: Text('No stars yet', style: TextStyle(color: spaceTextSecondary, fontSize: 11.5)),
+                            )
+                          : ListView.builder(
+                              shrinkWrap: true,
+                              padding: const EdgeInsets.symmetric(vertical: 4),
+                              itemCount: top10.length,
+                              itemBuilder: (context, i) {
+                                final u = top10[i];
+                                final isSelected = state.selectedUserId == u.id;
+                                return InkWell(
+                                  onTap: () => _focusUser(state, u.id),
+                                  child: Container(
+                                    color: isSelected ? spaceAccent.withOpacity(0.1) : Colors.transparent,
+                                    padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 5.0),
+                                    child: Row(
+                                      children: [
+                                        SizedBox(
+                                          width: 20,
+                                          child: Text(
+                                            '${i + 1}',
+                                            style: const TextStyle(color: spaceTextSecondary, fontSize: 11),
+                                          ),
+                                        ),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                u.name,
+                                                style: const TextStyle(color: spaceTextPrimary, fontSize: 12),
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                              Text(
+                                                getSectorName(u.sector),
+                                                style: const TextStyle(color: spaceTextSecondary, fontSize: 10),
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        Text(
+                                          '${u.r.toStringAsFixed(1)}px',
+                                          style: const TextStyle(color: spaceStar, fontSize: 11),
+                                        ),
+                                        const SizedBox(width: 6),
+                                        Container(
+                                          width: 6,
+                                          height: 6,
+                                          decoration: BoxDecoration(
+                                            shape: BoxShape.circle,
+                                            color: u.loggedIn ? spaceOnline : spaceOffline,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                    )
+                  else
+                    // LOG VIEW
+                    Container(
+                      constraints: BoxConstraints(maxHeight: isMobile ? 240 : 360),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            color: const Color(0x22000000),
+                            child: Row(
+                              children: [
+                                const Text('Target: ', style: TextStyle(color: spaceTextSecondary, fontSize: 10.5)),
+                                Expanded(
+                                  child: Text(
+                                    logTargetName,
+                                    style: const TextStyle(color: spaceAccent, fontSize: 11, fontWeight: FontWeight.w500),
                                     overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
-                        ),
-                        Icon(
-                          expanded ? Icons.keyboard_arrow_down : Icons.keyboard_arrow_left,
-                          color: spaceTextSecondary,
-                          size: 16,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                if (expanded)
-                  Container(
-                    constraints: const BoxConstraints(maxHeight: 280),
-                    child: events.isEmpty
-                        ? const Padding(
-                            padding: EdgeInsets.all(16.0),
-                            child: Text(
-                              'No actions recorded yet',
-                              style: TextStyle(color: spaceTextSecondary, fontSize: 11.5),
-                            ),
-                          )
-                        : ListView.separated(
-                            shrinkWrap: true,
-                            padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 6.0),
-                            itemCount: events.length,
-                            separatorBuilder: (_, __) => Divider(
-                              color: spaceBorder.withOpacity(0.3),
-                              height: 8,
-                            ),
-                            itemBuilder: (context, i) {
-                              final ev = events[i];
-                              return Padding(
-                                padding: const EdgeInsets.symmetric(vertical: 3.0),
-                                child: Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Padding(
-                                      padding: const EdgeInsets.only(top: 2.0),
-                                      child: _eventIcon(ev.type),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            ev.msg,
-                                            style: const TextStyle(
-                                              color: spaceTextPrimary,
-                                              fontSize: 11.5,
-                                              height: 1.25,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 2),
-                                          Text(
-                                            formatTimeAgo(ev.t),
-                                            style: const TextStyle(
-                                              color: spaceTextSecondary,
-                                              fontSize: 10,
-                                            ),
-                                          ),
-                                        ],
+                          Expanded(
+                            child: events.isEmpty
+                                ? const Center(
+                                    child: Padding(
+                                      padding: EdgeInsets.all(16.0),
+                                      child: Text(
+                                        'No actions recorded yet',
+                                        style: TextStyle(color: spaceTextSecondary, fontSize: 11.5),
                                       ),
                                     ),
-                                    if (ev.actorId != null &&
-                                        targetUser != null &&
-                                        ev.actorId != targetUser.id)
-                                      InkWell(
-                                        onTap: () => _focusUser(state, ev.actorId!),
-                                        child: const Padding(
-                                          padding: EdgeInsets.only(left: 4.0, top: 2.0),
-                                          child: Icon(
-                                            Icons.my_location,
-                                            size: 14,
-                                            color: spaceAccent,
-                                          ),
+                                  )
+                                : ListView.separated(
+                                    shrinkWrap: true,
+                                    padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 6.0),
+                                    itemCount: events.length,
+                                    separatorBuilder: (_, __) => Divider(
+                                      color: spaceBorder.withOpacity(0.3),
+                                      height: 6,
+                                    ),
+                                    itemBuilder: (context, i) {
+                                      final ev = events[i];
+                                      return Padding(
+                                        padding: const EdgeInsets.symmetric(vertical: 2.0),
+                                        child: Row(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Padding(
+                                              padding: const EdgeInsets.only(top: 2.0),
+                                              child: _eventIcon(ev.type),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    ev.msg,
+                                                    style: const TextStyle(
+                                                      color: spaceTextPrimary,
+                                                      fontSize: 11,
+                                                      height: 1.2,
+                                                    ),
+                                                  ),
+                                                  Text(
+                                                    formatTimeAgo(ev.t),
+                                                    style: const TextStyle(
+                                                      color: spaceTextSecondary,
+                                                      fontSize: 9.5,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                            if (ev.actorId != null &&
+                                                targetUser != null &&
+                                                ev.actorId != targetUser.id)
+                                              InkWell(
+                                                onTap: () => _focusUser(state, ev.actorId!),
+                                                child: const Padding(
+                                                  padding: EdgeInsets.only(left: 4.0, top: 2.0),
+                                                  child: Icon(
+                                                    Icons.my_location,
+                                                    size: 13,
+                                                    color: spaceAccent,
+                                                  ),
+                                                ),
+                                              ),
+                                          ],
                                         ),
-                                      ),
-                                  ],
-                                ),
-                              );
-                            },
+                                      );
+                                    },
+                                  ),
                           ),
-                  ),
+                        ],
+                      ),
+                    ),
+                ],
               ],
             ),
           ),
@@ -726,6 +716,10 @@ class _EventHistoryOverlayState extends State<EventHistoryOverlay> {
     );
   }
 }
+
+// Aliases for compatibility
+typedef LeaderboardOverlay = GamePanelOverlay;
+typedef EventHistoryOverlay = GamePanelOverlay;
 
 // ---------------------------------------------------------------------------
 // Star Info Panel
@@ -1253,18 +1247,19 @@ class _JamToastOverlayState extends State<JamToastOverlay>
 }
 
 // ---------------------------------------------------------------------------
-// Search
+// Top Navigation: Search Bar + Account Action
 // ---------------------------------------------------------------------------
 
-class SearchOverlay extends StatefulWidget {
+class TopNavOverlay extends StatefulWidget {
   final SpaceMapGame? game;
-  const SearchOverlay({this.game});
+  const TopNavOverlay({super.key, this.game});
 
   @override
-  _SearchOverlayState createState() => _SearchOverlayState();
+  State<TopNavOverlay> createState() => _TopNavOverlayState();
 }
 
-class _SearchOverlayState extends State<SearchOverlay> {
+class _TopNavOverlayState extends State<TopNavOverlay> {
+  bool isSearchOpen = false;
   final TextEditingController _searchController = TextEditingController();
   List<dynamic> _results = [];
 
@@ -1324,7 +1319,10 @@ class _SearchOverlayState extends State<SearchOverlay> {
       }
     }
     _searchController.clear();
-    setState(() => _results = []);
+    setState(() {
+      _results = [];
+      isSearchOpen = false;
+    });
   }
 
   @override
@@ -1333,40 +1331,181 @@ class _SearchOverlayState extends State<SearchOverlay> {
     final isMobile = MediaQuery.of(context).size.width < 600;
 
     return Positioned(
-      top: isMobile ? (state.sessionUserId != null ? 180 : 130) : 60,
-      left: isMobile ? 16 : 244,
-      right: isMobile ? 16 : null,
-      width: isMobile ? null : 360,
+      top: 16,
+      right: 16,
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
-              child: TextField(
-                controller: _searchController,
-                onChanged: (v) => _runSearch(state, v),
-                decoration: InputDecoration(
-                  hintText: 'Search star or sector...',
-                  hintStyle: const TextStyle(color: spaceTextSecondary),
-                  filled: true,
-                  fillColor: spaceBg,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 12,
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Search button / Search input
+              if (!isSearchOpen)
+                InkWell(
+                  onTap: () => setState(() => isSearchOpen = true),
+                  borderRadius: BorderRadius.circular(10),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+                      child: Container(
+                        width: 40,
+                        height: 40,
+                        decoration: _glassDecoration(10),
+                        child: const Icon(Icons.search, color: spaceAccent, size: 20),
+                      ),
+                    ),
                   ),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
+                )
+              else
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+                    child: Container(
+                      width: isMobile ? 180 : 260,
+                      height: 40,
+                      padding: const EdgeInsets.only(left: 10, right: 4),
+                      decoration: _glassDecoration(10),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.search, color: spaceAccent, size: 18),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: TextField(
+                              controller: _searchController,
+                              autofocus: true,
+                              onChanged: (v) => _runSearch(state, v),
+                              style: const TextStyle(color: spaceTextPrimary, fontSize: 12.5),
+                              decoration: const InputDecoration(
+                                hintText: 'Search star/sector...',
+                                hintStyle: TextStyle(color: spaceTextSecondary, fontSize: 12),
+                                border: InputBorder.none,
+                                isDense: true,
+                                contentPadding: EdgeInsets.zero,
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            iconSize: 16,
+                            splashRadius: 16,
+                            icon: const Icon(Icons.close, color: spaceTextSecondary),
+                            onPressed: () {
+                              setState(() {
+                                isSearchOpen = false;
+                                _searchController.clear();
+                                _results = [];
+                              });
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
-                style: const TextStyle(color: spaceTextPrimary, fontSize: 13),
-              ),
-            ),
+
+              const SizedBox(width: 8),
+
+              // Account / Login Button
+              if (state.sessionUserId == null)
+                InkWell(
+                  onTap: () {
+                    state.showLoginModal = true;
+                    state.notifyListeners();
+                  },
+                  borderRadius: BorderRadius.circular(10),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+                      child: Container(
+                        height: 40,
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        decoration: _glassDecoration(10),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.person_add, color: spaceAccent, size: 18),
+                            if (!isMobile) ...[
+                              const SizedBox(width: 6),
+                              const Text(
+                                'Log In',
+                                style: TextStyle(color: spaceTextPrimary, fontSize: 12.5),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                )
+              else
+                PopupMenuButton<String>(
+                  tooltip: 'Account',
+                  color: const Color(0xFF081321),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: const BorderSide(color: spaceBorder),
+                  ),
+                  onSelected: (val) {
+                    if (val == 'logout') {
+                      state.logout();
+                    }
+                  },
+                  itemBuilder: (ctx) => [
+                    PopupMenuItem(
+                      enabled: false,
+                      child: Text(
+                        'Signed in as ${state.sessionUserName}',
+                        style: const TextStyle(color: spaceAccent, fontSize: 12),
+                      ),
+                    ),
+                    const PopupMenuDivider(),
+                    const PopupMenuItem(
+                      value: 'logout',
+                      child: Row(
+                        children: [
+                          Icon(Icons.logout, size: 16, color: spaceDanger),
+                          SizedBox(width: 8),
+                          Text('Log Out', style: TextStyle(color: spaceDanger, fontSize: 13)),
+                        ],
+                      ),
+                    ),
+                  ],
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+                      child: Container(
+                        height: 40,
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        decoration: _glassDecoration(10),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.account_circle, color: spaceAccent, size: 20),
+                            if (!isMobile) ...[
+                              const SizedBox(width: 6),
+                              Text(
+                                state.sessionUserName ?? '',
+                                style: const TextStyle(color: spaceTextPrimary, fontSize: 12),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
           ),
-          if (_results.isNotEmpty)
+
+          // Search Dropdown Results
+          if (isSearchOpen && _results.isNotEmpty)
             Container(
               margin: const EdgeInsets.only(top: 8),
+              width: isMobile ? 220 : 280,
               decoration: _glassDecoration(12),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(12),
@@ -1374,43 +1513,33 @@ class _SearchOverlayState extends State<SearchOverlay> {
                   filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
                   child: ListView.builder(
                     shrinkWrap: true,
+                    padding: const EdgeInsets.symmetric(vertical: 4),
                     itemCount: _results.length,
                     itemBuilder: (context, i) {
                       final res = _results[i];
                       return InkWell(
                         onTap: () => _pick(state, res),
                         child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12.0,
-                            vertical: 8.0,
-                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 7.0),
                           child: Row(
                             children: [
                               Icon(
-                                res['kind'] == 'sector'
-                                    ? Icons.travel_explore
-                                    : Icons.star,
+                                res['kind'] == 'sector' ? Icons.travel_explore : Icons.star,
                                 color: spaceAccent,
-                                size: 16,
+                                size: 15,
                               ),
-                              const SizedBox(width: 10),
+                              const SizedBox(width: 8),
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
                                       res['label'],
-                                      style: const TextStyle(
-                                        color: spaceTextPrimary,
-                                        fontSize: 12.5,
-                                      ),
+                                      style: const TextStyle(color: spaceTextPrimary, fontSize: 12),
                                     ),
                                     Text(
                                       res['sub'],
-                                      style: const TextStyle(
-                                        color: spaceTextSecondary,
-                                        fontSize: 10.5,
-                                      ),
+                                      style: const TextStyle(color: spaceTextSecondary, fontSize: 10),
                                     ),
                                   ],
                                 ),
@@ -1429,3 +1558,5 @@ class _SearchOverlayState extends State<SearchOverlay> {
     );
   }
 }
+
+typedef SearchOverlay = TopNavOverlay;
