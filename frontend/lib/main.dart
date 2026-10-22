@@ -70,6 +70,7 @@ class _GameScreenState extends State<GameScreen> {
           HudOverlay(),
           SessionBarOverlay(),
           LeaderboardOverlay(game: _game),
+          EventHistoryOverlay(game: _game),
           SearchOverlay(game: _game),
           StarInfoOverlay(),
           ControlsOverlay(game: _game),

@@ -89,6 +89,7 @@ type User struct {
 	Email           string
 	Pw              string // hashed password
 	LastHeartbeatAt int64  // live presence timestamp; not persisted
+	Events          []UserEvent // persisted recent event log
 
 	// Live (not persisted)
 	PullForce    float64
@@ -115,6 +116,7 @@ func (s *Sim) expireHeartbeats(now int64) {
 			u.LastHeartbeatAt = 0
 			u.PullForce = 0
 			s.rev++
+			s.logUserEvent(u, "status", "Signal lost (went offline)", 0, "")
 			s.markDirty(u.ID)
 		}
 	}
@@ -158,8 +160,9 @@ type UserSnap struct {
 	BoostAt      int64   `json:"boostAt"`
 	GravityUntil int64   `json:"gravityUntil"`
 	MoveReadyAt  int64   `json:"moveReadyAt"`
-	LastJamAt    int64   `json:"lastJamAt"`
-	LastJamBy    string  `json:"lastJamBy"`
+	LastJamAt    int64       `json:"lastJamAt"`
+	LastJamBy    string      `json:"lastJamBy"`
+	Events       []UserEvent `json:"events,omitempty"`
 }
 
 type WorldSnap struct {
@@ -273,6 +276,56 @@ type Sim struct {
 }
 
 func nowMs() int64 { return time.Now().UnixMilli() }
+
+const maxUserEvents = 20
+
+var eventSeq int
+
+func (s *Sim) logUserEvent(u *User, eventType, msg string, actorID int, actorName string) {
+	if u == nil {
+		return
+	}
+	eventSeq++
+	ev := UserEvent{
+		ID:        eventSeq,
+		T:         nowMs(),
+		Type:      eventType,
+		Msg:       msg,
+		ActorID:   actorID,
+		ActorName: actorName,
+	}
+	u.Events = append(u.Events, ev)
+	if len(u.Events) > maxUserEvents {
+		u.Events = u.Events[len(u.Events)-maxUserEvents:]
+	}
+	s.markDirty(u.ID)
+}
+
+func calcStarTier(r float64) int {
+	if r >= 38.0 {
+		return 3
+	}
+	if r >= 28.0 {
+		return 2
+	}
+	if r >= 18.0 {
+		return 1
+	}
+	return 0
+}
+
+func getTierName(tier int) string {
+	switch tier {
+	case 3:
+		return "Supergiant"
+	case 2:
+		return "Giant"
+	case 1:
+		return "Main Sequence"
+	default:
+		return "Protostar"
+	}
+}
 
 // NewSim creates and loads the simulation. Returns an error only if the store
 // itself fails; a missing roster is not an error (start fresh).
@@ -496,13 +549,18 @@ func (s *Sim) userFromRecord(rec UserRecord) *User {
 	if ca == 0 {
 		ca = nowMs()
 	}
+	events := rec.Events
+	if events == nil {
+		events = []UserEvent{}
+	}
 	return &User{
 		ID: uid, Name: name, Fx: fx, Fy: fy, R: r, Hits: rec.Hits,
 		CreatedAt: ca, LoggedIn: rec.LoggedIn,
 		Email: strings.TrimSpace(rec.Email), Pw: rec.Pw,
 		PullForce: pull, Sector: rec.Sector,
 		GravityUntil: rec.GravityUntil, MoveReadyAt: rec.MoveReadyAt,
-		Jams: make(map[int]int64),
+		Jams:   make(map[int]int64),
+		Events: events,
 	}
 }
 
@@ -544,6 +602,7 @@ func (s *Sim) Register(name, email, password string) RegisterResult {
 	})
 	u.LastHeartbeatAt = nowMs()
 	u.Fx, u.Fy = s.placeStarFraction(sector)
+	s.logUserEvent(u, "birth", fmt.Sprintf("Born in %s", s.sectorName(sector)), u.ID, u.Name)
 	s.users = append(s.users, u)
 	s.positionUsers()
 	s.gridDirty = true
@@ -599,9 +658,11 @@ func (s *Sim) SetLoggedIn(uid int, value bool) StatusResult {
 			u.LoggedIn = value
 			if value {
 				u.LastHeartbeatAt = nowMs()
+				s.logUserEvent(u, "status", "Went Live (online)", u.ID, u.Name)
 			} else {
 				u.LastHeartbeatAt = 0
 				u.PullForce = 0
+				s.logUserEvent(u, "status", "Went Dark (offline)", u.ID, u.Name)
 			}
 			s.rev++
 			s.markDirty(uid)
@@ -669,6 +730,7 @@ func (s *Sim) ActivateBoost(uid int) BoostResult {
 		}
 		u.BoostAt = now
 		s.rev++
+		s.logUserEvent(u, "boost", "Activated Boost (+100% pull)", u.ID, u.Name)
 		return BoostResult{
 			OK:         true,
 			BoostUntil: now + boostDurationMs,
@@ -712,6 +774,8 @@ func (s *Sim) Jam(attackerID, targetID int) JamResult {
 	target.Jams[attackerID] = now
 	target.LastJamAt = now
 	target.LastJamBy = attacker.Name
+	s.logUserEvent(target, "jam_received", fmt.Sprintf("Jammed by %s (-25%% pull)", attacker.Name), attacker.ID, attacker.Name)
+	s.logUserEvent(attacker, "jam_sent", fmt.Sprintf("Jammed %s (-25%% pull)", target.Name), target.ID, target.Name)
 	s.rev++
 	return JamResult{
 		OK:            true,
@@ -754,6 +818,7 @@ func (s *Sim) MoveUser(uid, destination int) MoveResult {
 	user.MoveReadyAt = now + moveCooldownMs
 	user.BoostAt = 0
 	user.PullForce = 0
+	s.logUserEvent(user, "moved", fmt.Sprintf("Jumped to %s", s.sectorName(destination)), user.ID, user.Name)
 	s.positionUsers()
 	s.gridDirty = true
 	s.rev++
@@ -981,8 +1046,13 @@ func (s *Sim) detectCollisions() {
 		}
 		hit.Hits++
 		hit.Pulse = 1.0
+		tierBefore := calcStarTier(hit.R)
 		if newR := math.Min(hit.R+userGrowth, s.allowedRadius(hit)); newR > hit.R {
 			hit.R = newR
+			tierAfter := calcStarTier(hit.R)
+			if tierAfter > tierBefore {
+				s.logUserEvent(hit, "tier_up", fmt.Sprintf("Evolved into %s!", getTierName(tierAfter)), hit.ID, hit.Name)
+			}
 		}
 		s.collisions++
 		s.markDirty(hit.ID)
@@ -1033,6 +1103,7 @@ func (s *Sim) snapshot(includeUsers bool) Snapshot {
 				CreatedAt: u.CreatedAt, Sector: u.Sector,
 				BoostAt: u.BoostAt, GravityUntil: u.GravityUntil, MoveReadyAt: u.MoveReadyAt,
 				LastJamAt: u.LastJamAt, LastJamBy: u.LastJamBy,
+				Events: u.Events,
 			}
 		}
 		snap.Users = users
@@ -1062,6 +1133,7 @@ func (s *Sim) persistRecord(u *User) UserRecord {
 		ID: u.ID, Name: u.Name, Fx: u.Fx, Fy: u.Fy, Sector: u.Sector, R: u.R,
 		Hits: u.Hits, CreatedAt: u.CreatedAt, LoggedIn: u.LoggedIn,
 		Email: u.Email, Pw: u.Pw, GravityUntil: u.GravityUntil, MoveReadyAt: u.MoveReadyAt,
+		Events: u.Events,
 	}
 }
 

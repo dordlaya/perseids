@@ -28,21 +28,32 @@ import (
 // Shared data types
 // ---------------------------------------------------------------------------
 
+// UserEvent represents a recorded action taken by or done on a user star.
+type UserEvent struct {
+	ID        int    `json:"id"`
+	T         int64  `json:"t"`
+	Type      string `json:"type"`
+	Msg       string `json:"msg"`
+	ActorID   int    `json:"actorId,omitempty"`
+	ActorName string `json:"actorName,omitempty"`
+}
+
 // UserRecord is the persisted subset of a User (no live/transient fields).
 type UserRecord struct {
-	ID           int     `json:"id"`
-	Name         string  `json:"name"`
-	Fx           float64 `json:"fx"`
-	Fy           float64 `json:"fy"`
-	Sector       int     `json:"sector,omitempty"`
-	R            float64 `json:"r"`
-	Hits         int     `json:"hits"`
-	CreatedAt    int64   `json:"createdAt"`
-	LoggedIn     bool    `json:"loggedIn"`
-	GravityUntil int64   `json:"gravityUntil,omitempty"`
-	MoveReadyAt  int64   `json:"moveReadyAt,omitempty"`
-	Email        string  `json:"email"`
-	Pw           string  `json:"pw"`
+	ID           int         `json:"id"`
+	Name         string      `json:"name"`
+	Fx           float64     `json:"fx"`
+	Fy           float64     `json:"fy"`
+	Sector       int         `json:"sector,omitempty"`
+	R            float64     `json:"r"`
+	Hits         int         `json:"hits"`
+	CreatedAt    int64       `json:"createdAt"`
+	LoggedIn     bool        `json:"loggedIn"`
+	GravityUntil int64       `json:"gravityUntil,omitempty"`
+	MoveReadyAt  int64       `json:"moveReadyAt,omitempty"`
+	Email        string      `json:"email"`
+	Pw           string      `json:"pw"`
+	Events       []UserEvent `json:"events,omitempty"`
 }
 
 // RosterSnapshot is what Load() returns — rev counter, optional seq counter
@@ -209,6 +220,10 @@ func (s *ValkeyStore) Load() (*RosterSnapshot, error) {
 			fy, _ := strconv.ParseFloat(h["fy"], 64)
 			hits, _ := strconv.Atoi(h["hits"])
 			ca, _ := strconv.ParseInt(h["createdAt"], 10, 64)
+			var events []UserEvent
+			if evStr, ok := h["events"]; ok && evStr != "" {
+				_ = json.Unmarshal([]byte(evStr), &events)
+			}
 			snap.Users = append(snap.Users, UserRecord{
 				ID: id, Name: h["name"], Fx: fx, Fy: fy,
 				Sector:       atoiDefault(h["sector"]),
@@ -216,6 +231,7 @@ func (s *ValkeyStore) Load() (*RosterSnapshot, error) {
 				MoveReadyAt:  int64Default(h["moveReadyAt"]), R: r,
 				Hits: hits, CreatedAt: ca, LoggedIn: h["loggedIn"] == "1",
 				Email: h["email"], Pw: h["pw"],
+				Events: events,
 			})
 			s.known[id] = true
 		}
@@ -240,6 +256,7 @@ func (s *ValkeyStore) SaveChanges(p ChangePayload) error {
 		if rec.LoggedIn {
 			li = "1"
 		}
+		eventsJSON, _ := json.Marshal(rec.Events)
 		pipe.HSet(ctx, s.k("user", strconv.Itoa(uid)), map[string]any{
 			"name": rec.Name, "fx": strconv.FormatFloat(rec.Fx, 'g', -1, 64),
 			"fy":     strconv.FormatFloat(rec.Fy, 'g', -1, 64),
@@ -247,6 +264,7 @@ func (s *ValkeyStore) SaveChanges(p ChangePayload) error {
 			"r":    strconv.FormatFloat(rec.R, 'g', -1, 64),
 			"hits": rec.Hits, "createdAt": rec.CreatedAt,
 			"loggedIn": li, "email": rec.Email, "pw": rec.Pw,
+			"events": string(eventsJSON),
 		})
 		if !s.known[uid] {
 			pipe.RPush(ctx, s.k("order"), uid)

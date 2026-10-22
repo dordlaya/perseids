@@ -25,3 +25,16 @@ String fmtClock(int ms) {
   final sec = s % 60;
   return m > 0 ? '$m:${sec.toString().padLeft(2, '0')}' : '${sec}s';
 }
+
+String formatTimeAgo(int timestampMs) {
+  if (timestampMs <= 0) return '';
+  final diff = DateTime.now().millisecondsSinceEpoch - timestampMs;
+  if (diff < 3000) return 'Just now';
+  final s = diff ~/ 1000;
+  if (s < 60) return '${s}s ago';
+  final m = s ~/ 60;
+  if (m < 60) return '${m}m ago';
+  final h = m ~/ 60;
+  if (h < 24) return '${h}h ago';
+  return '${h ~/ 24}d ago';
+}

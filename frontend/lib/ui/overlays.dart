@@ -504,6 +504,230 @@ class _LeaderboardOverlayState extends State<LeaderboardOverlay> {
 }
 
 // ---------------------------------------------------------------------------
+// Event History (Activity Log)
+// ---------------------------------------------------------------------------
+
+class EventHistoryOverlay extends StatefulWidget {
+  final SpaceMapGame? game;
+  const EventHistoryOverlay({super.key, this.game});
+
+  @override
+  State<EventHistoryOverlay> createState() => _EventHistoryOverlayState();
+}
+
+class _EventHistoryOverlayState extends State<EventHistoryOverlay> {
+  bool expanded = false;
+
+  void _focusUser(AppState state, int id) {
+    final u = state.getUserById(id);
+    if (u != null && widget.game != null) {
+      widget.game!.moveCameraTo(Vector2(u.x, u.y), zoom: 1.8);
+      state.selectedUserId = u.id;
+      state.notifyListeners();
+    }
+  }
+
+  Widget _eventIcon(String type) {
+    IconData icon;
+    Color color;
+    switch (type) {
+      case 'jam_received':
+        icon = Icons.flash_on;
+        color = spaceDanger;
+        break;
+      case 'jam_sent':
+        icon = Icons.gps_fixed;
+        color = const Color(0xFFFF9E79);
+        break;
+      case 'boost':
+        icon = Icons.bolt;
+        color = spaceStar;
+        break;
+      case 'moved':
+        icon = Icons.flight_takeoff;
+        color = spaceAccent;
+        break;
+      case 'tier_up':
+        icon = Icons.auto_awesome;
+        color = const Color(0xFFFFD700);
+        break;
+      case 'status':
+        icon = Icons.power_settings_new;
+        color = spaceOnline;
+        break;
+      case 'birth':
+      default:
+        icon = Icons.star_border;
+        color = spaceAccent;
+        break;
+    }
+    return Container(
+      width: 22,
+      height: 22,
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.18),
+        shape: BoxShape.circle,
+        border: Border.all(color: color.withOpacity(0.4), width: 1),
+      ),
+      child: Icon(icon, color: color, size: 12),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = context.watch<AppState>();
+    final isMobile = MediaQuery.of(context).size.width < 600;
+
+    UserSnap? targetUser;
+    if (state.selectedUserId != null) {
+      targetUser = state.getUserById(state.selectedUserId!);
+    }
+    targetUser ??= state.sessionUserId != null ? state.getUserById(state.sessionUserId!) : null;
+    if (targetUser == null && state.users.isNotEmpty) {
+      targetUser = state.users.first;
+    }
+
+    final events = targetUser != null ? List<UserEvent>.from(targetUser.events.reversed) : <UserEvent>[];
+    final titleName = targetUser != null ? targetUser.name : 'No Star';
+
+    return Positioned(
+      top: isMobile ? 140 : 155,
+      left: 16,
+      width: isMobile ? 190 : 260,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+          child: Container(
+            decoration: _glassDecoration(),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                InkWell(
+                  onTap: () => setState(() => expanded = !expanded),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 10.0),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Row(
+                            children: [
+                              const Text(
+                                '📜 Log',
+                                style: TextStyle(
+                                  color: spaceTextPrimary,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  '· $titleName',
+                                  style: const TextStyle(
+                                    color: spaceAccent,
+                                    fontSize: 12,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Icon(
+                          expanded ? Icons.keyboard_arrow_down : Icons.keyboard_arrow_left,
+                          color: spaceTextSecondary,
+                          size: 16,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                if (expanded)
+                  Container(
+                    constraints: const BoxConstraints(maxHeight: 280),
+                    child: events.isEmpty
+                        ? const Padding(
+                            padding: EdgeInsets.all(16.0),
+                            child: Text(
+                              'No actions recorded yet',
+                              style: TextStyle(color: spaceTextSecondary, fontSize: 11.5),
+                            ),
+                          )
+                        : ListView.separated(
+                            shrinkWrap: true,
+                            padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 6.0),
+                            itemCount: events.length,
+                            separatorBuilder: (_, __) => Divider(
+                              color: spaceBorder.withOpacity(0.3),
+                              height: 8,
+                            ),
+                            itemBuilder: (context, i) {
+                              final ev = events[i];
+                              return Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 3.0),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 2.0),
+                                      child: _eventIcon(ev.type),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            ev.msg,
+                                            style: const TextStyle(
+                                              color: spaceTextPrimary,
+                                              fontSize: 11.5,
+                                              height: 1.25,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            formatTimeAgo(ev.t),
+                                            style: const TextStyle(
+                                              color: spaceTextSecondary,
+                                              fontSize: 10,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    if (ev.actorId != null &&
+                                        targetUser != null &&
+                                        ev.actorId != targetUser.id)
+                                      InkWell(
+                                        onTap: () => _focusUser(state, ev.actorId!),
+                                        child: const Padding(
+                                          padding: EdgeInsets.only(left: 4.0, top: 2.0),
+                                          child: Icon(
+                                            Icons.my_location,
+                                            size: 14,
+                                            color: spaceAccent,
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Star Info Panel
 // ---------------------------------------------------------------------------
 

@@ -12,6 +12,35 @@ class WorldSnap {
   }
 }
 
+class UserEvent {
+  final int id;
+  final int t;
+  final String type;
+  final String msg;
+  final int? actorId;
+  final String? actorName;
+
+  UserEvent({
+    required this.id,
+    required this.t,
+    required this.type,
+    required this.msg,
+    this.actorId,
+    this.actorName,
+  });
+
+  factory UserEvent.fromJson(Map<String, dynamic> json) {
+    return UserEvent(
+      id: json['id'] as int? ?? 0,
+      t: json['t'] as int? ?? 0,
+      type: json['type'] as String? ?? 'info',
+      msg: json['msg'] as String? ?? '',
+      actorId: json['actorId'] as int?,
+      actorName: json['actorName'] as String?,
+    );
+  }
+}
+
 class UserSnap {
   final int id;
   final String name;
@@ -29,6 +58,7 @@ class UserSnap {
   final int moveReadyAt;
   final int lastJamAt;
   final String lastJamBy;
+  final List<UserEvent> events;
 
   UserSnap({
     required this.id,
@@ -47,6 +77,7 @@ class UserSnap {
     required this.moveReadyAt,
     required this.lastJamAt,
     required this.lastJamBy,
+    this.events = const [],
   });
 
   factory UserSnap.fromJson(Map<String, dynamic> json) {
@@ -67,9 +98,12 @@ class UserSnap {
       moveReadyAt: json['moveReadyAt'] as int? ?? 0,
       lastJamAt: json['lastJamAt'] as int? ?? 0,
       lastJamBy: json['lastJamBy'] as String? ?? '',
+      events: (json['events'] as List<dynamic>?)
+              ?.map((e) => UserEvent.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          const [],
     );
   }
-
 }
 
 class SectorSnap {
