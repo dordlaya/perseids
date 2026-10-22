@@ -240,53 +240,130 @@ class HudOverlay extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
+    final isMobile = MediaQuery.of(context).size.width < 600;
     return Positioned(
       top: 16,
       left: 16,
+      width: isMobile ? 184 : null,
       child: ClipRRect(
         borderRadius: BorderRadius.circular(12),
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
           child: Container(
-            padding: const EdgeInsets.all(14),
+            padding: EdgeInsets.all(isMobile ? 10 : 14),
             decoration: _glassDecoration(),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'SPACE MAP · LIVE',
-                  style: TextStyle(
-                    color: spaceTextSecondary,
-                    fontSize: 11,
-                    letterSpacing: 2.2,
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Server - Statistics',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: spaceTextSecondary,
+                          fontSize: isMobile ? 10 : 11,
+                          letterSpacing: isMobile ? 0.5 : 1.2,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Container(
+                      width: 7,
+                      height: 7,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: state.isConnected ? spaceOnline : spaceDanger,
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: isMobile ? 8 : 10),
+                if (isMobile)
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _mobileStat(
+                          'PROBES',
+                          '${state.probes.length}/${state.maxProbes}',
+                          spaceAccent,
+                        ),
+                      ),
+                      Expanded(
+                        child: _mobileStat(
+                          'USERS',
+                          '${state.users.where((u) => u.loggedIn).length}/${state.users.length}',
+                          spaceAccent,
+                        ),
+                      ),
+                      Expanded(
+                        child: _mobileStat(
+                          'COLLISIONS',
+                          '${state.collisions}',
+                          spaceAccent,
+                        ),
+                      ),
+                    ],
+                  )
+                else ...[
+                  Text(
+                    'Probes: ${state.probes.length} / ${state.maxProbes}',
+                    style: const TextStyle(color: spaceAccent),
                   ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Probes: ${state.probes.length} / ${state.maxProbes}',
-                  style: const TextStyle(color: spaceAccent),
-                ),
-                Text(
-                  'Users: ${state.users.where((u) => u.loggedIn).length} / ${state.users.length}',
-                  style: const TextStyle(color: spaceAccent),
-                ),
-                Text(
-                  'Collisions: ${state.collisions}',
-                  style: const TextStyle(color: spaceAccent),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  state.isConnected ? 'live' : 'reconnecting...',
-                  style: TextStyle(
-                    color: state.isConnected ? spaceOnline : spaceDanger,
-                    fontSize: 11,
+                  Text(
+                    'Users: ${state.users.where((u) => u.loggedIn).length} / ${state.users.length}',
+                    style: const TextStyle(color: spaceAccent),
                   ),
-                ),
+                  Text(
+                    'Collisions: ${state.collisions}',
+                    style: const TextStyle(color: spaceAccent),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    state.isConnected ? 'live' : 'reconnecting...',
+                    style: TextStyle(
+                      color: state.isConnected ? spaceOnline : spaceDanger,
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
         ),
       ),
+    );
+  }
+
+  Widget _mobileStat(String label, String value, Color color) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            color: spaceTextSecondary,
+            fontSize: 8,
+            letterSpacing: 0.4,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          value,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color: color,
+            fontSize: 11,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -434,9 +511,9 @@ class _GamePanelOverlayState extends State<GamePanelOverlay> {
     final logTargetName = targetUser != null ? targetUser.name : 'No Star';
 
     return Positioned(
-      top: isMobile ? 122 : 130,
+      top: isMobile ? 140 : 155,
       left: 16,
-      width: isMobile ? 220 : 255,
+      width: isMobile ? 180 : 220,
       child: ClipRRect(
         borderRadius: BorderRadius.circular(12),
         child: BackdropFilter(
