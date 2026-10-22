@@ -27,9 +27,9 @@ class DisplayProbe {
 
 class AppState extends ChangeNotifier {
   final ApiClient api = ApiClient();
-  
+
   bool isConnected = false;
-  
+
   int collisions = 0;
   int maxProbes = 10;
   double spawnInterval = 10.0;
@@ -40,13 +40,17 @@ class AppState extends ChangeNotifier {
   List<SectorSnap> sectors = [];
   List<DisplayProbe> probes = [];
   Map<int, DisplayProbe> _probeById = {};
-  
+
   int? sessionUserId;
   String? sessionUserName;
   int? selectedUserId;
-  
+
   bool showLoginModal = false;
   Timer? _heartbeatTimer;
+
+  // Jam toast: set when the player's own star is jammed, cleared after display.
+  String? jamToastMessage;
+  int _lastSeenJamAt = 0;
 
   AppState() {
     _loadSession();
@@ -66,7 +70,7 @@ class AppState extends ChangeNotifier {
     });
 
     api.snapshotStream.listen(_applySnapshot);
-    
+
     api.connectStream();
   }
 
@@ -149,6 +153,8 @@ class AppState extends ChangeNotifier {
         serverRev = snap.rev!;
         _validateSession();
       }
+      // Detect when the player's own star gets newly jammed.
+      _checkJamToast();
     }
 
     Set<int> seen = {};
@@ -165,7 +171,7 @@ class AppState extends ChangeNotifier {
         p.hue = s.hue;
       }
     }
-    
+
     probes.removeWhere((p) {
       if (!seen.contains(p.id)) {
         _probeById.remove(p.id);
@@ -185,6 +191,26 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  void _checkJamToast() {
+    if (sessionUserId == null) return;
+    final me = getUserById(sessionUserId!);
+    if (me == null) return;
+    // Fire a toast when lastJamAt is newer than the last one we already showed.
+    if (me.lastJamAt > 0 && me.lastJamAt != _lastSeenJamAt) {
+      _lastSeenJamAt = me.lastJamAt;
+      final by = me.lastJamBy.isNotEmpty ? me.lastJamBy : 'someone';
+      jamToastMessage = '⚡ Jammed by $by — pull −25% for 60 s';
+      notifyListeners();
+    }
+  }
+
+  void dismissJamToast() {
+    if (jamToastMessage != null) {
+      jamToastMessage = null;
+      notifyListeners();
+    }
+  }
+
   UserSnap? getUserById(int id) {
     try {
       return users.firstWhere((u) => u.id == id);
@@ -197,7 +223,7 @@ class AppState extends ChangeNotifier {
     sectors = await api.getSectors();
     notifyListeners();
   }
-  
+
   void stepDisplay(double dt) {
     // Frame-rate independent smoothing: the same response is produced at
     // 30, 60, or 120 FPS.

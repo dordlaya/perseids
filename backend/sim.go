@@ -37,6 +37,7 @@ const (
 	userAttraction = 26.0
 	userGrowth     = 2.5
 	maxUserRadius  = 46.0
+	decayRate      = 0.08 // px per second while offline — max→min takes ~7.5 min
 	starMinGap     = 12.0
 	pullFade       = 3.0
 	probeRadius    = 6.0
@@ -897,6 +898,11 @@ func (s *Sim) update(dt float64) {
 		}
 		if u.Pulse > 0 {
 			u.Pulse = math.Max(0, u.Pulse-dt*2.2)
+		}
+		// Stellar decay: offline stars slowly shrink back toward the minimum radius.
+		if !u.LoggedIn && u.R > userRadius {
+			u.R = math.Max(userRadius, u.R-decayRate*dt)
+			s.markDirty(u.ID)
 		}
 	}
 

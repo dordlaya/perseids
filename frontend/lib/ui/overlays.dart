@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'dart:async';
 
 import '../state/app_state.dart';
 import '../game/space_map_game.dart';
 import '../models/models.dart';
 
-import 'package:flame/components.dart';
+import 'package:flame/components.dart' hide Timer;
 
 import 'helpers.dart';
+import '../game/components/star_component.dart' show starTierName;
 
 import 'dart:ui';
 import 'dart:math';
@@ -584,6 +586,7 @@ class StarInfoOverlay extends StatelessWidget {
                 _infoRow('age', formatDuration(now - u.createdAt)),
                 _infoRow('absorbed', '${u.hits}'),
                 _infoRow('size', '${u.r.toStringAsFixed(1)} px'),
+                _infoRow('class', starTierName(u.r)),
                 _infoRow('growth', '+${(u.r - 10.0).toStringAsFixed(1)} px'),
                 _infoRow(
                   'position',
@@ -861,6 +864,131 @@ class ControlsOverlay extends StatelessWidget {
               height: 44,
               decoration: _glassDecoration(10),
               child: Icon(icon, color: spaceAccent, size: 22),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Jam Toast
+// ---------------------------------------------------------------------------
+
+class JamToastOverlay extends StatefulWidget {
+  const JamToastOverlay({super.key});
+
+  @override
+  State<JamToastOverlay> createState() => _JamToastOverlayState();
+}
+
+class _JamToastOverlayState extends State<JamToastOverlay>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _anim;
+  late Animation<double> _curve;
+  Timer? _autoHide;
+  String? _displayedMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _anim = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 350),
+    );
+    _curve = CurvedAnimation(parent: _anim, curve: Curves.easeOut);
+  }
+
+  @override
+  void dispose() {
+    _anim.dispose();
+    _autoHide?.cancel();
+    super.dispose();
+  }
+
+  void _trigger(AppState state, String message) {
+    if (_displayedMessage == message && _anim.value > 0) return;
+    _displayedMessage = message;
+    _autoHide?.cancel();
+    _anim.forward(from: 0);
+    _autoHide = Timer(const Duration(seconds: 5), () {
+      if (mounted) {
+        _anim.reverse().then((_) {
+          if (mounted) {
+            _displayedMessage = null;
+            state.dismissJamToast();
+          }
+        });
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = context.watch<AppState>();
+    final msg = state.jamToastMessage;
+
+    if (msg != null && msg != _displayedMessage) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _trigger(state, msg);
+      });
+    }
+
+    if (msg == null && _displayedMessage == null) return const SizedBox.shrink();
+
+    return Positioned(
+      top: 80,
+      left: 0,
+      right: 0,
+      child: Center(
+        child: AnimatedBuilder(
+          animation: _curve,
+          builder: (context, child) {
+            final t = _curve.value.clamp(0.0, 1.0);
+            return Transform.translate(
+              offset: Offset(0, -20 * (1 - t)),
+              child: Opacity(opacity: t, child: child),
+            );
+          },
+          child: GestureDetector(
+            onTap: () {
+              _autoHide?.cancel();
+              _anim.reverse().then((_) {
+                if (mounted) {
+                  _displayedMessage = null;
+                  state.dismissJamToast();
+                }
+              });
+            },
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(999),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xCC1A0505),
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(color: spaceDanger.withOpacity(0.7)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: spaceDanger.withOpacity(0.35),
+                        blurRadius: 18,
+                      ),
+                    ],
+                  ),
+                  child: Text(
+                    msg ?? _displayedMessage ?? '',
+                    style: const TextStyle(
+                      color: spaceDanger,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      letterSpacing: 0.4,
+                    ),
+                  ),
+                ),
+              ),
             ),
           ),
         ),

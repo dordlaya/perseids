@@ -1,17 +1,29 @@
 {
-  "rev": 1,
+  "rev": 45,
   "users": [
     {
       "id": 1,
-      "name": "d1",
-      "fx": 0.3477255145136441,
-      "fy": 0.42938013497115435,
+      "name": "Zoro",
+      "fx": 0.6527313392736828,
+      "fy": 0.21362142295125242,
       "r": 10,
       "hits": 0,
-      "createdAt": 1789319854075,
+      "createdAt": 1792700739574,
       "loggedIn": true,
-      "email": "d@d.com",
-      "pw": "pbkdf2_sha256$120000$7d7c897d7d2b9d56e3a8b5336b3adf18$c88a5629cf79b7ad927adb3a0de3d13cf34909bd127efe1cd4ae412c4dc3bca0"
+      "email": "Zoro@p.com",
+      "pw": "pbkdf2_sha256$120000$d11de134c09dd17535ac307d0d2f7b5c$c77b42724a9b035a38bcd10989fff94e4be6328a9c12e25691a24640949297d0"
+    },
+    {
+      "id": 2,
+      "name": "Poo",
+      "fx": 0.44918946204502674,
+      "fy": 0.19696800919753654,
+      "r": 10,
+      "hits": 0,
+      "createdAt": 1792700751825,
+      "loggedIn": true,
+      "email": "er@er.com",
+      "pw": "pbkdf2_sha256$120000$413989b85d3bb5f01e9006cf8c124592$9d220c643fb735ae71bced65e9fb5e9a328f325225f52ac86bb269ccd21c841e"
     }
   ]
 }

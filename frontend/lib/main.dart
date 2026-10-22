@@ -73,6 +73,7 @@ class _GameScreenState extends State<GameScreen> {
           SearchOverlay(game: _game),
           StarInfoOverlay(),
           ControlsOverlay(game: _game),
+          const JamToastOverlay(),
 
           // Add button
           Positioned(
