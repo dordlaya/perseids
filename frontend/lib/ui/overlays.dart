@@ -402,7 +402,7 @@ class SessionBarOverlay extends StatelessWidget {
                   const SizedBox(width: 12),
                   InkWell(
                     onTap: () => state.logout(),
-                    child: const Text(
+                    child: Text(
                       AppState.preserveUsersOnLogout ? 'Switch User' : 'Log Out',
                       style: TextStyle(color: spaceTextSecondary, fontSize: 12),
                     ),
@@ -513,7 +513,7 @@ class _GamePanelOverlayState extends State<GamePanelOverlay> {
     return Positioned(
       top: isMobile ? 140 : 155,
       left: 16,
-      width: isMobile ? 180 : 220,
+      width: isMobile ? 170 : 200,
       child: ClipRRect(
         borderRadius: BorderRadius.circular(12),
         child: BackdropFilter(
@@ -526,7 +526,10 @@ class _GamePanelOverlayState extends State<GamePanelOverlay> {
               children: [
                 // Header / Tab Switcher
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                  padding: EdgeInsets.symmetric(
+                    horizontal: isMobile ? 4 : 6,
+                    vertical: 4,
+                  ),
                   child: Row(
                     children: [
                       // Tab 0: Leaders
@@ -545,7 +548,10 @@ class _GamePanelOverlayState extends State<GamePanelOverlay> {
                           });
                         },
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          padding: EdgeInsets.symmetric(
+                            horizontal: isMobile ? 6 : 10,
+                            vertical: 6,
+                          ),
                           decoration: expanded && activeTab == 0
                               ? BoxDecoration(
                                   color: spaceAccent.withOpacity(0.18),
@@ -553,11 +559,11 @@ class _GamePanelOverlayState extends State<GamePanelOverlay> {
                                   border: Border.all(color: spaceAccent.withOpacity(0.4)),
                                 )
                               : null,
-                          child: const Text(
+                          child: Text(
                             '🏆 Leaders',
                             style: TextStyle(
                               color: spaceTextPrimary,
-                              fontSize: 12.5,
+                              fontSize: isMobile ? 11.5 : 12.5,
                               fontWeight: FontWeight.w500,
                             ),
                           ),
@@ -580,7 +586,10 @@ class _GamePanelOverlayState extends State<GamePanelOverlay> {
                           });
                         },
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          padding: EdgeInsets.symmetric(
+                            horizontal: isMobile ? 6 : 10,
+                            vertical: 6,
+                          ),
                           decoration: expanded && activeTab == 1
                               ? BoxDecoration(
                                   color: spaceAccent.withOpacity(0.18),
@@ -588,11 +597,11 @@ class _GamePanelOverlayState extends State<GamePanelOverlay> {
                                   border: Border.all(color: spaceAccent.withOpacity(0.4)),
                                 )
                               : null,
-                          child: const Text(
+                          child: Text(
                             '📜 Log',
                             style: TextStyle(
                               color: spaceTextPrimary,
-                              fontSize: 12.5,
+                              fontSize: isMobile ? 11.5 : 12.5,
                               fontWeight: FontWeight.w500,
                             ),
                           ),
@@ -815,6 +824,9 @@ class StarInfoOverlay extends StatelessWidget {
     final jammed = u.lastJamAt > 0 && (now - u.lastJamAt) < 60000;
     final boosted = u.boostAt > 0 && (now - u.boostAt) < 60000;
     final arriving = u.gravityUntil > now;
+    final jamCooldownUntil = state.jamCooldownUntilFor(u.id);
+    final jamCooldownRemaining =
+        jamCooldownUntil > now ? jamCooldownUntil - now : 0;
 
     final statusColor = arriving
         ? spaceAccent
@@ -896,13 +908,18 @@ class StarInfoOverlay extends StatelessWidget {
               ),
               minimumSize: const Size.fromHeight(38),
             ),
-            onPressed: !u.loggedIn || arriving || jammed || boosted
+            onPressed: !u.loggedIn ||
+                    arriving ||
+                    boosted ||
+                    jamCooldownRemaining > 0
                 ? null
-                : () => state.api.jam(u.id),
+                : () => state.jam(u.id),
             child: Text(
               boosted
                   ? 'Boosted (Immune)'
-                  : (jammed ? 'Jammed (−25%)' : 'Jam −25%'),
+                  : jamCooldownRemaining > 0
+                      ? 'You can jam again in ${fmtClock(jamCooldownRemaining)}'
+                      : (jammed ? 'Jam again (−25%)' : 'Jam −25%'),
             ),
           ),
         ],

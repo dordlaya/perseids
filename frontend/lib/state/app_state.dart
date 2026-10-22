@@ -52,6 +52,7 @@ class AppState extends ChangeNotifier {
   int? sessionUserId;
   String? sessionUserName;
   int? selectedUserId;
+  final Map<String, int> _jamCooldowns = {};
 
   bool showLoginModal = false;
   Timer? _heartbeatTimer;
@@ -136,6 +137,27 @@ class AppState extends ChangeNotifier {
       await api.logout();
     }
     clearSession();
+  }
+
+  int jamCooldownUntilFor(int targetUserId) {
+    final attackerId = sessionUserId;
+    if (attackerId == null) return 0;
+    return _jamCooldowns['$attackerId:$targetUserId'] ?? 0;
+  }
+
+  Future<Map<String, dynamic>> jam(int targetUserId) async {
+    final attackerId = sessionUserId;
+    if (attackerId == null) {
+      return {'ok': false, 'error': 'unauthorized'};
+    }
+
+    final result = await api.jam(targetUserId);
+    final cooldownUntil = result['cooldownUntil'];
+    if (cooldownUntil is num) {
+      _jamCooldowns['$attackerId:$targetUserId'] = cooldownUntil.toInt();
+      notifyListeners();
+    }
+    return result;
   }
 
   void _startHeartbeat() {
