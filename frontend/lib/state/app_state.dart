@@ -51,7 +51,9 @@ class AppState extends ChangeNotifier {
 
   int? sessionUserId;
   String? sessionUserName;
+  int? previewUserId;
   int? selectedUserId;
+  final Map<String, int> _jamCooldowns = {};
 
   bool showLoginModal = false;
   Timer? _heartbeatTimer;
@@ -136,6 +138,49 @@ class AppState extends ChangeNotifier {
       await api.logout();
     }
     clearSession();
+  }
+
+  int jamCooldownUntilFor(int targetUserId) {
+    final attackerId = sessionUserId;
+    if (attackerId == null) return 0;
+    return _jamCooldowns['$attackerId:$targetUserId'] ?? 0;
+  }
+
+  void onStarTapped(int userId) {
+    if (previewUserId == userId) {
+      selectedUserId = userId;
+    } else {
+      previewUserId = userId;
+      selectedUserId = null;
+    }
+    notifyListeners();
+  }
+
+  void showUserDetails(int userId) {
+    previewUserId = userId;
+    selectedUserId = userId;
+    notifyListeners();
+  }
+
+  void clearStarSelection() {
+    previewUserId = null;
+    selectedUserId = null;
+    notifyListeners();
+  }
+
+  Future<Map<String, dynamic>> jam(int targetUserId) async {
+    final attackerId = sessionUserId;
+    if (attackerId == null) {
+      return {'ok': false, 'error': 'unauthorized'};
+    }
+
+    final result = await api.jam(targetUserId);
+    final cooldownUntil = result['cooldownUntil'];
+    if (cooldownUntil is num) {
+      _jamCooldowns['$attackerId:$targetUserId'] = cooldownUntil.toInt();
+      notifyListeners();
+    }
+    return result;
   }
 
   void _startHeartbeat() {

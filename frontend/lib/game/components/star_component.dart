@@ -106,8 +106,7 @@ class StarComponent extends Component with TapCallbacks {
 
   @override
   void onTapDown(TapDownEvent event) {
-    state.selectedUserId = user.id;
-    state.notifyListeners();
+    state.onStarTapped(user.id);
   }
 
   @override
@@ -185,7 +184,7 @@ class StarComponent extends Component with TapCallbacks {
     }
 
     // ── Selection Ring ───────────────────────────────────────────────────────
-    if (state.selectedUserId == user.id) {
+    if (state.selectedUserId == user.id || state.previewUserId == user.id) {
       final selectedPaint = Paint()
         ..color = const Color(0x9FE7FF).withOpacity(0.9)
         ..style = PaintingStyle.stroke

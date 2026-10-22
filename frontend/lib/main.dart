@@ -71,6 +71,7 @@ class _GameScreenState extends State<GameScreen> {
           SessionBarOverlay(),
           GamePanelOverlay(game: _game),
           TopNavOverlay(game: _game),
+          StarPreviewOverlay(),
           StarInfoOverlay(),
           ControlsOverlay(game: _game),
           const JamToastOverlay(),

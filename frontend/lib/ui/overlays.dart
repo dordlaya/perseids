@@ -402,7 +402,7 @@ class SessionBarOverlay extends StatelessWidget {
                   const SizedBox(width: 12),
                   InkWell(
                     onTap: () => state.logout(),
-                    child: const Text(
+                    child: Text(
                       AppState.preserveUsersOnLogout ? 'Switch User' : 'Log Out',
                       style: TextStyle(color: spaceTextSecondary, fontSize: 12),
                     ),
@@ -437,8 +437,7 @@ class _GamePanelOverlayState extends State<GamePanelOverlay> {
     final u = state.getUserById(id);
     if (u != null && widget.game != null) {
       widget.game!.moveCameraTo(Vector2(u.x, u.y), zoom: 1.8);
-      state.selectedUserId = u.id;
-      state.notifyListeners();
+      state.showUserDetails(u.id);
     }
   }
 
@@ -503,6 +502,9 @@ class _GamePanelOverlayState extends State<GamePanelOverlay> {
     if (state.selectedUserId != null) {
       targetUser = state.getUserById(state.selectedUserId!);
     }
+    targetUser ??= state.previewUserId != null
+        ? state.getUserById(state.previewUserId!)
+        : null;
     targetUser ??= state.sessionUserId != null ? state.getUserById(state.sessionUserId!) : null;
     if (targetUser == null && state.users.isNotEmpty) {
       targetUser = state.users.first;
@@ -513,7 +515,7 @@ class _GamePanelOverlayState extends State<GamePanelOverlay> {
     return Positioned(
       top: isMobile ? 140 : 155,
       left: 16,
-      width: isMobile ? 180 : 220,
+      width: isMobile ? 170 : 200,
       child: ClipRRect(
         borderRadius: BorderRadius.circular(12),
         child: BackdropFilter(
@@ -526,7 +528,10 @@ class _GamePanelOverlayState extends State<GamePanelOverlay> {
               children: [
                 // Header / Tab Switcher
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                  padding: EdgeInsets.symmetric(
+                    horizontal: isMobile ? 4 : 6,
+                    vertical: 4,
+                  ),
                   child: Row(
                     children: [
                       // Tab 0: Leaders
@@ -545,7 +550,10 @@ class _GamePanelOverlayState extends State<GamePanelOverlay> {
                           });
                         },
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          padding: EdgeInsets.symmetric(
+                            horizontal: isMobile ? 6 : 10,
+                            vertical: 6,
+                          ),
                           decoration: expanded && activeTab == 0
                               ? BoxDecoration(
                                   color: spaceAccent.withOpacity(0.18),
@@ -553,11 +561,11 @@ class _GamePanelOverlayState extends State<GamePanelOverlay> {
                                   border: Border.all(color: spaceAccent.withOpacity(0.4)),
                                 )
                               : null,
-                          child: const Text(
+                          child: Text(
                             '🏆 Leaders',
                             style: TextStyle(
                               color: spaceTextPrimary,
-                              fontSize: 12.5,
+                              fontSize: isMobile ? 11.5 : 12.5,
                               fontWeight: FontWeight.w500,
                             ),
                           ),
@@ -580,7 +588,10 @@ class _GamePanelOverlayState extends State<GamePanelOverlay> {
                           });
                         },
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          padding: EdgeInsets.symmetric(
+                            horizontal: isMobile ? 6 : 10,
+                            vertical: 6,
+                          ),
                           decoration: expanded && activeTab == 1
                               ? BoxDecoration(
                                   color: spaceAccent.withOpacity(0.18),
@@ -588,11 +599,11 @@ class _GamePanelOverlayState extends State<GamePanelOverlay> {
                                   border: Border.all(color: spaceAccent.withOpacity(0.4)),
                                 )
                               : null,
-                          child: const Text(
+                          child: Text(
                             '📜 Log',
                             style: TextStyle(
                               color: spaceTextPrimary,
-                              fontSize: 12.5,
+                              fontSize: isMobile ? 11.5 : 12.5,
                               fontWeight: FontWeight.w500,
                             ),
                           ),
@@ -633,7 +644,9 @@ class _GamePanelOverlayState extends State<GamePanelOverlay> {
                               itemCount: top10.length,
                               itemBuilder: (context, i) {
                                 final u = top10[i];
-                                final isSelected = state.selectedUserId == u.id;
+                                final isSelected =
+                                    state.selectedUserId == u.id ||
+                                    state.previewUserId == u.id;
                                 return InkWell(
                                   onTap: () => _focusUser(state, u.id),
                                   child: Container(
@@ -802,6 +815,125 @@ typedef EventHistoryOverlay = GamePanelOverlay;
 // Star Info Panel
 // ---------------------------------------------------------------------------
 
+class StarPreviewOverlay extends StatelessWidget {
+  const StarPreviewOverlay({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final state = context.watch<AppState>();
+    if (state.selectedUserId != null || state.previewUserId == null) {
+      return const SizedBox.shrink();
+    }
+
+    final user = state.getUserById(state.previewUserId!);
+    if (user == null) return const SizedBox.shrink();
+
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final jammed = user.lastJamAt > 0 && now - user.lastJamAt < 60000;
+    final boosted = user.boostAt > 0 && now - user.boostAt < 60000;
+    final statusColor = jammed
+        ? spaceDanger
+        : boosted
+            ? spaceStar
+            : user.loggedIn
+                ? spaceOnline
+                : spaceOffline;
+    final status = [
+      user.loggedIn ? 'online' : 'offline',
+      if (jammed) 'jammed',
+      if (boosted) 'boosted',
+    ].join(' · ');
+    final isMobile = MediaQuery.of(context).size.width < 600;
+
+    return Positioned(
+      left: isMobile ? 76 : null,
+      right: 16,
+      bottom: 16,
+      width: isMobile ? null : 240,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: _glassDecoration(),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 28,
+                      height: 28,
+                      decoration: BoxDecoration(
+                        color: spaceAccent.withOpacity(0.16),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: spaceAccent.withOpacity(0.4),
+                        ),
+                      ),
+                      child: const Icon(
+                        Icons.auto_awesome,
+                        color: spaceAccent,
+                        size: 15,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        user.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: spaceStar,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Close star preview',
+                      constraints: const BoxConstraints(
+                        minWidth: 40,
+                        minHeight: 40,
+                      ),
+                      padding: EdgeInsets.zero,
+                      icon: const Icon(
+                        Icons.close,
+                        color: spaceTextSecondary,
+                        size: 18,
+                      ),
+                      onPressed: state.clearStarSelection,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  status,
+                  style: TextStyle(
+                    color: statusColor,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'Tap again for details',
+                  style: TextStyle(
+                    color: spaceTextSecondary,
+                    fontSize: 10,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class StarInfoOverlay extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -815,6 +947,9 @@ class StarInfoOverlay extends StatelessWidget {
     final jammed = u.lastJamAt > 0 && (now - u.lastJamAt) < 60000;
     final boosted = u.boostAt > 0 && (now - u.boostAt) < 60000;
     final arriving = u.gravityUntil > now;
+    final jamCooldownUntil = state.jamCooldownUntilFor(u.id);
+    final jamCooldownRemaining =
+        jamCooldownUntil > now ? jamCooldownUntil - now : 0;
 
     final statusColor = arriving
         ? spaceAccent
@@ -896,13 +1031,18 @@ class StarInfoOverlay extends StatelessWidget {
               ),
               minimumSize: const Size.fromHeight(38),
             ),
-            onPressed: !u.loggedIn || arriving || jammed || boosted
+            onPressed: !u.loggedIn ||
+                    arriving ||
+                    boosted ||
+                    jamCooldownRemaining > 0
                 ? null
-                : () => state.api.jam(u.id),
+                : () => state.jam(u.id),
             child: Text(
               boosted
                   ? 'Boosted (Immune)'
-                  : (jammed ? 'Jammed (−25%)' : 'Jam −25%'),
+                  : jamCooldownRemaining > 0
+                      ? 'You can jam again in ${fmtClock(jamCooldownRemaining)}'
+                      : (jammed ? 'Jam again (−25%)' : 'Jam −25%'),
             ),
           ),
         ],
@@ -990,8 +1130,7 @@ class StarInfoOverlay extends StatelessWidget {
                           size: 20,
                         ),
                         onPressed: () {
-                          state.selectedUserId = null;
-                          state.notifyListeners();
+                          state.clearStarSelection();
                         },
                       ),
                     ],
@@ -1231,8 +1370,7 @@ class ControlsOverlay extends StatelessWidget {
             _btn(Icons.my_location, () {
               if (game != null) {
                 game!.moveCameraTo(Vector2(me.x, me.y), zoom: 1.8);
-                state.selectedUserId = me.id;
-                state.notifyListeners();
+                state.showUserDetails(me.id);
               }
             }),
 
@@ -1451,8 +1589,7 @@ class _TopNavOverlayState extends State<TopNavOverlay> {
       if (item['kind'] == 'star') {
         final u = item['user'] as UserSnap;
         widget.game!.moveCameraTo(Vector2(u.x, u.y), zoom: 1.8);
-        state.selectedUserId = u.id;
-        state.notifyListeners();
+        state.showUserDetails(u.id);
       } else {
         final i = item['index'] as int;
         final col = i % 4;
