@@ -78,6 +78,9 @@ const (
 	boostPull       = 1.0
 	boostDurationMs = 60_000
 	boostCooldownMs = 600_000
+	jamRewardPull   = 0.01
+	jamRewardMax    = 50
+	jamRewardMs     = 60_000
 	jamReduction    = 0.25
 	jamDurationMs   = 60_000
 	jamCooldownMs   = 1_800_000
@@ -112,16 +115,18 @@ type User struct {
 	Events          []UserEvent // persisted recent event log
 
 	// Live (not persisted)
-	PullForce    float64
-	Pulse        float64
-	X, Y         float64 // world-space position
-	Sector       int
-	BoostAt      int64
-	GravityUntil int64
-	MoveReadyAt  int64
-	Jams         map[int]int64 // attacker_id → activated_at_ms
-	LastJamAt    int64
-	LastJamBy    string
+	PullForce      float64
+	Pulse          float64
+	X, Y           float64 // world-space position
+	Sector         int
+	BoostAt        int64
+	JamRewardAt    int64
+	JamRewardCount int
+	GravityUntil   int64
+	MoveReadyAt    int64
+	Jams           map[int]int64 // attacker_id → activated_at_ms
+	LastJamAt      int64
+	LastJamBy      string
 }
 
 func normalizedAppearanceID(id string) string {
@@ -188,24 +193,26 @@ type ProbeSnap struct {
 }
 
 type UserSnap struct {
-	ID           int         `json:"id"`
-	Name         string      `json:"name"`
-	AppearanceID string      `json:"appearanceId"`
-	X            float64     `json:"x"`
-	Y            float64     `json:"y"`
-	R            float64     `json:"r"`
-	Hits         int         `json:"hits"`
-	LoggedIn     bool        `json:"loggedIn"`
-	Pull         float64     `json:"pull"`
-	Pulse        float64     `json:"pulse"`
-	CreatedAt    int64       `json:"createdAt"`
-	Sector       int         `json:"sector"`
-	BoostAt      int64       `json:"boostAt"`
-	GravityUntil int64       `json:"gravityUntil"`
-	MoveReadyAt  int64       `json:"moveReadyAt"`
-	LastJamAt    int64       `json:"lastJamAt"`
-	LastJamBy    string      `json:"lastJamBy"`
-	Events       []UserEvent `json:"events,omitempty"`
+	ID             int         `json:"id"`
+	Name           string      `json:"name"`
+	AppearanceID   string      `json:"appearanceId"`
+	X              float64     `json:"x"`
+	Y              float64     `json:"y"`
+	R              float64     `json:"r"`
+	Hits           int         `json:"hits"`
+	LoggedIn       bool        `json:"loggedIn"`
+	Pull           float64     `json:"pull"`
+	Pulse          float64     `json:"pulse"`
+	CreatedAt      int64       `json:"createdAt"`
+	Sector         int         `json:"sector"`
+	BoostAt        int64       `json:"boostAt"`
+	JamRewardAt    int64       `json:"jamRewardAt"`
+	JamRewardCount int         `json:"jamRewardCount"`
+	GravityUntil   int64       `json:"gravityUntil"`
+	MoveReadyAt    int64       `json:"moveReadyAt"`
+	LastJamAt      int64       `json:"lastJamAt"`
+	LastJamBy      string      `json:"lastJamBy"`
+	Events         []UserEvent `json:"events,omitempty"`
 }
 
 type WorldSnap struct {
@@ -266,6 +273,7 @@ type JamResult struct {
 	Error         string `json:"error,omitempty"`
 	JamUntil      int64  `json:"jamUntil,omitempty"`
 	CooldownUntil int64  `json:"cooldownUntil,omitempty"`
+	RewardPercent int    `json:"rewardPercent,omitempty"`
 }
 
 type ResetResult struct {
@@ -751,11 +759,26 @@ func (s *Sim) pullTarget(u *User, now int64) float64 {
 	if u.BoostAt > 0 && now-u.BoostAt < boostDurationMs {
 		base = boostPull
 	}
+	if u.JamRewardAt > 0 && now-u.JamRewardAt < jamRewardMs {
+		base += math.Min(float64(u.JamRewardCount), float64(jamRewardMax)) * jamRewardPull
+	}
+	base = math.Min(base, boostPull)
 	result := base - jamReduction*float64(s.activeJams(u, now))
 	if result < 0 {
 		return 0.0
 	}
 	return result
+}
+
+func (u *User) recordJamReward(now int64) int {
+	if u.JamRewardAt == 0 || now-u.JamRewardAt >= jamRewardMs {
+		u.JamRewardCount = 0
+	}
+	if u.JamRewardCount < jamRewardMax {
+		u.JamRewardCount++
+	}
+	u.JamRewardAt = now
+	return u.JamRewardCount
 }
 
 // ActivateBoost activates the Heartbeat ability for the given user.
@@ -830,6 +853,7 @@ func (s *Sim) Jam(attackerID, targetID int) JamResult {
 	target.Jams[attackerID] = now
 	target.LastJamAt = now
 	target.LastJamBy = attacker.Name
+	rewardPercent := attacker.recordJamReward(now)
 	s.logUserEvent(target, "jam_received", fmt.Sprintf("Jammed by %s (-25%% pull)", attacker.Name), attacker.ID, attacker.Name)
 	s.logUserEvent(attacker, "jam_sent", fmt.Sprintf("Jammed %s (-25%% pull)", target.Name), target.ID, target.Name)
 	s.rev++
@@ -837,6 +861,7 @@ func (s *Sim) Jam(attackerID, targetID int) JamResult {
 		OK:            true,
 		JamUntil:      now + jamDurationMs,
 		CooldownUntil: now + jamCooldownMs,
+		RewardPercent: rewardPercent,
 	}
 }
 
@@ -1158,6 +1183,7 @@ func (s *Sim) snapshot(includeUsers bool) Snapshot {
 				Pulse:     math.Round(u.Pulse*1000) / 1000,
 				CreatedAt: u.CreatedAt, Sector: u.Sector,
 				BoostAt: u.BoostAt, GravityUntil: u.GravityUntil, MoveReadyAt: u.MoveReadyAt,
+				JamRewardAt: u.JamRewardAt, JamRewardCount: u.JamRewardCount,
 				LastJamAt: u.LastJamAt, LastJamBy: u.LastJamBy,
 				Events: u.Events,
 			}

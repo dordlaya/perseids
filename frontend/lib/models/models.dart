@@ -76,6 +76,8 @@ class UserSnap {
   final int createdAt;
   final int sector;
   final int boostAt;
+  final int jamRewardAt;
+  final int jamRewardCount;
   final int gravityUntil;
   final int moveReadyAt;
   final int lastJamAt;
@@ -96,6 +98,8 @@ class UserSnap {
     required this.createdAt,
     required this.sector,
     required this.boostAt,
+    this.jamRewardAt = 0,
+    this.jamRewardCount = 0,
     required this.gravityUntil,
     required this.moveReadyAt,
     required this.lastJamAt,
@@ -118,6 +122,8 @@ class UserSnap {
       createdAt: json['createdAt'] as int? ?? 0,
       sector: json['sector'] as int? ?? 0,
       boostAt: json['boostAt'] as int? ?? 0,
+      jamRewardAt: json['jamRewardAt'] as int? ?? 0,
+      jamRewardCount: json['jamRewardCount'] as int? ?? 0,
       gravityUntil: json['gravityUntil'] as int? ?? 0,
       moveReadyAt: json['moveReadyAt'] as int? ?? 0,
       lastJamAt: json['lastJamAt'] as int? ?? 0,
@@ -144,6 +150,8 @@ class UserSnap {
       createdAt: createdAt,
       sector: sector,
       boostAt: boostAt,
+      jamRewardAt: jamRewardAt,
+      jamRewardCount: jamRewardCount,
       gravityUntil: gravityUntil,
       moveReadyAt: moveReadyAt,
       lastJamAt: lastJamAt,

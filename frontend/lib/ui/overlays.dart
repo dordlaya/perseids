@@ -1280,6 +1280,14 @@ class StarInfoOverlay extends StatelessWidget {
       children: [
         _infoRow('sector', getSectorName(u.sector)),
         _infoRow('status', statusText, valColor: statusColor),
+        if (u.id == state.sessionUserId &&
+            u.jamRewardAt > 0 &&
+            now - u.jamRewardAt < 60000)
+          _infoRow(
+            'jam reward',
+            '+${u.jamRewardCount}% · ${fmtClock(60000 - (now - u.jamRewardAt))}',
+            valColor: spaceAccent,
+          ),
         if (arriving)
           _infoRow(
             'gravity',

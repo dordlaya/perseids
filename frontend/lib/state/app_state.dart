@@ -184,7 +184,7 @@ class AppState extends ChangeNotifier {
     final targetName = getUserById(targetUserId)?.name ?? 'star';
     final error = result['error'];
     jamToastMessage = result['ok'] == true
-        ? 'Jammed $targetName — pull −25% for 60 s'
+        ? 'Jammed $targetName — jam reward +${result['rewardPercent'] ?? 1}% pull for 60 s'
         : switch (error) {
             'self' => 'You cannot jam your own star.',
             'not_found' => 'That star could not be found.',
