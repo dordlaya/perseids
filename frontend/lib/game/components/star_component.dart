@@ -1,9 +1,12 @@
+import 'dart:async';
+import 'dart:math';
+
 import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
+import 'package:flame/events.dart';
+
 import '../../models/models.dart';
 import '../../state/app_state.dart';
-import 'dart:math';
-import 'package:flame/events.dart';
 
 // ---------------------------------------------------------------------------
 // Star classification tiers
@@ -72,7 +75,7 @@ const _tierStyles = <StarTier, _TierStyle>{
 // Component
 // ---------------------------------------------------------------------------
 
-class StarComponent extends Component with TapCallbacks {
+class StarComponent extends Component with TapCallbacks, LongPressCallbacks {
   UserSnap user;
   final AppState state;
   late double _x;
@@ -107,6 +110,13 @@ class StarComponent extends Component with TapCallbacks {
   @override
   void onTapDown(TapDownEvent event) {
     state.onStarTapped(user.id);
+  }
+
+  @override
+  void onLongPressStart(LongPressStartEvent event) {
+    super.onLongPressStart(event);
+    if (state.sessionUserId == user.id) return;
+    unawaited(state.jam(user.id));
   }
 
   @override

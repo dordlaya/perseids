@@ -171,6 +171,8 @@ class AppState extends ChangeNotifier {
   Future<Map<String, dynamic>> jam(int targetUserId) async {
     final attackerId = sessionUserId;
     if (attackerId == null) {
+      jamToastMessage = 'Log in to jam another star.';
+      notifyListeners();
       return {'ok': false, 'error': 'unauthorized'};
     }
 
@@ -178,8 +180,22 @@ class AppState extends ChangeNotifier {
     final cooldownUntil = result['cooldownUntil'];
     if (cooldownUntil is num) {
       _jamCooldowns['$attackerId:$targetUserId'] = cooldownUntil.toInt();
-      notifyListeners();
     }
+    final targetName = getUserById(targetUserId)?.name ?? 'star';
+    final error = result['error'];
+    jamToastMessage = result['ok'] == true
+        ? 'Jammed $targetName — pull −25% for 60 s'
+        : switch (error) {
+            'self' => 'You cannot jam your own star.',
+            'not_found' => 'That star could not be found.',
+            'target_offline' => '$targetName is offline and cannot be jammed.',
+            'offline' => 'Go online before jamming another star.',
+            'in_transit' => 'You cannot jam while in transit.',
+            'target_boosted' => '$targetName is boosted and immune to jams.',
+            'cooldown' => 'Your jam cooldown for $targetName is still active.',
+            _ => 'Could not jam $targetName.',
+          };
+    notifyListeners();
     return result;
   }
 
