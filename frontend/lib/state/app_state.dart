@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
+
 import 'dart:async';
 import 'dart:math';
+
 import '../models/models.dart';
 import '../api/client.dart';
+
 import 'dart:convert';
+
 import 'package:web/web.dart' as web;
 
 class DisplayProbe {
@@ -184,7 +188,7 @@ class AppState extends ChangeNotifier {
     final targetName = getUserById(targetUserId)?.name ?? 'star';
     final error = result['error'];
     jamToastMessage = result['ok'] == true
-        ? 'Jammed $targetName — jam reward +${result['rewardPercent'] ?? 1}% pull for 60 s'
+        ? 'Jammed $targetName — +${result['rewardPercent'] ?? 1}% pull for 60 s (total +${result['rewardTotalPercent'] ?? 1}%)'
         : switch (error) {
             'self' => 'You cannot jam your own star.',
             'not_found' => 'That star could not be found.',

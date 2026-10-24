@@ -120,8 +120,7 @@ type User struct {
 	X, Y           float64 // world-space position
 	Sector         int
 	BoostAt        int64
-	JamRewardAt    int64
-	JamRewardCount int
+	JamRewardUntil []int64
 	GravityUntil   int64
 	MoveReadyAt    int64
 	Jams           map[int]int64 // attacker_id → activated_at_ms
@@ -206,7 +205,7 @@ type UserSnap struct {
 	CreatedAt      int64       `json:"createdAt"`
 	Sector         int         `json:"sector"`
 	BoostAt        int64       `json:"boostAt"`
-	JamRewardAt    int64       `json:"jamRewardAt"`
+	JamRewardUntil int64       `json:"jamRewardUntil"`
 	JamRewardCount int         `json:"jamRewardCount"`
 	GravityUntil   int64       `json:"gravityUntil"`
 	MoveReadyAt    int64       `json:"moveReadyAt"`
@@ -269,11 +268,13 @@ type BoostResult struct {
 }
 
 type JamResult struct {
-	OK            bool   `json:"ok"`
-	Error         string `json:"error,omitempty"`
-	JamUntil      int64  `json:"jamUntil,omitempty"`
-	CooldownUntil int64  `json:"cooldownUntil,omitempty"`
-	RewardPercent int    `json:"rewardPercent,omitempty"`
+	OK                 bool   `json:"ok"`
+	Error              string `json:"error,omitempty"`
+	JamUntil           int64  `json:"jamUntil,omitempty"`
+	CooldownUntil      int64  `json:"cooldownUntil,omitempty"`
+	RewardPercent      int    `json:"rewardPercent,omitempty"`
+	RewardTotalPercent int    `json:"rewardTotalPercent,omitempty"`
+	RewardUntil        int64  `json:"rewardUntil,omitempty"`
 }
 
 type ResetResult struct {
@@ -759,9 +760,8 @@ func (s *Sim) pullTarget(u *User, now int64) float64 {
 	if u.BoostAt > 0 && now-u.BoostAt < boostDurationMs {
 		base = boostPull
 	}
-	if u.JamRewardAt > 0 && now-u.JamRewardAt < jamRewardMs {
-		base += math.Min(float64(u.JamRewardCount), float64(jamRewardMax)) * jamRewardPull
-	}
+	rewardCount, _ := u.activeJamRewards(now)
+	base += math.Min(float64(rewardCount), float64(jamRewardMax)) * jamRewardPull
 	base = math.Min(base, boostPull)
 	result := base - jamReduction*float64(s.activeJams(u, now))
 	if result < 0 {
@@ -770,15 +770,29 @@ func (s *Sim) pullTarget(u *User, now int64) float64 {
 	return result
 }
 
-func (u *User) recordJamReward(now int64) int {
-	if u.JamRewardAt == 0 || now-u.JamRewardAt >= jamRewardMs {
-		u.JamRewardCount = 0
+func (u *User) activeJamRewards(now int64) (int, int64) {
+	active := u.JamRewardUntil[:0]
+	var earliestExpiry int64
+	for _, expiry := range u.JamRewardUntil {
+		if expiry <= now {
+			continue
+		}
+		active = append(active, expiry)
+		if earliestExpiry == 0 || expiry < earliestExpiry {
+			earliestExpiry = expiry
+		}
 	}
-	if u.JamRewardCount < jamRewardMax {
-		u.JamRewardCount++
+	u.JamRewardUntil = active
+	return len(active), earliestExpiry
+}
+
+func (u *User) recordJamReward(now int64) (int, int64) {
+	count, _ := u.activeJamRewards(now)
+	if count < jamRewardMax {
+		u.JamRewardUntil = append(u.JamRewardUntil, now+jamRewardMs)
 	}
-	u.JamRewardAt = now
-	return u.JamRewardCount
+	count, earliestExpiry := u.activeJamRewards(now)
+	return count, earliestExpiry
 }
 
 // ActivateBoost activates the Heartbeat ability for the given user.
@@ -853,15 +867,17 @@ func (s *Sim) Jam(attackerID, targetID int) JamResult {
 	target.Jams[attackerID] = now
 	target.LastJamAt = now
 	target.LastJamBy = attacker.Name
-	rewardPercent := attacker.recordJamReward(now)
+	rewardTotalPercent, rewardUntil := attacker.recordJamReward(now)
 	s.logUserEvent(target, "jam_received", fmt.Sprintf("Jammed by %s (-25%% pull)", attacker.Name), attacker.ID, attacker.Name)
 	s.logUserEvent(attacker, "jam_sent", fmt.Sprintf("Jammed %s (-25%% pull)", target.Name), target.ID, target.Name)
 	s.rev++
 	return JamResult{
-		OK:            true,
-		JamUntil:      now + jamDurationMs,
-		CooldownUntil: now + jamCooldownMs,
-		RewardPercent: rewardPercent,
+		OK:                 true,
+		JamUntil:           now + jamDurationMs,
+		CooldownUntil:      now + jamCooldownMs,
+		RewardPercent:      1,
+		RewardTotalPercent: rewardTotalPercent,
+		RewardUntil:        rewardUntil,
 	}
 }
 
@@ -1173,7 +1189,9 @@ func (s *Sim) snapshot(includeUsers bool) Snapshot {
 			H: math.Round(bh*10) / 10,
 		}
 		users := make([]UserSnap, len(s.users))
+		now := nowMs()
 		for i, u := range s.users {
+			rewardCount, rewardUntil := u.activeJamRewards(now)
 			users[i] = UserSnap{
 				ID: u.ID, Name: u.Name, AppearanceID: normalizedAppearanceID(u.AppearanceID),
 				X: math.Round(u.X*10) / 10, Y: math.Round(u.Y*10) / 10,
@@ -1183,8 +1201,9 @@ func (s *Sim) snapshot(includeUsers bool) Snapshot {
 				Pulse:     math.Round(u.Pulse*1000) / 1000,
 				CreatedAt: u.CreatedAt, Sector: u.Sector,
 				BoostAt: u.BoostAt, GravityUntil: u.GravityUntil, MoveReadyAt: u.MoveReadyAt,
-				JamRewardAt: u.JamRewardAt, JamRewardCount: u.JamRewardCount,
-				LastJamAt: u.LastJamAt, LastJamBy: u.LastJamBy,
+				JamRewardCount: rewardCount,
+				JamRewardUntil: rewardUntil,
+				LastJamAt:      u.LastJamAt, LastJamBy: u.LastJamBy,
 				Events: u.Events,
 			}
 		}

@@ -1281,11 +1281,11 @@ class StarInfoOverlay extends StatelessWidget {
         _infoRow('sector', getSectorName(u.sector)),
         _infoRow('status', statusText, valColor: statusColor),
         if (u.id == state.sessionUserId &&
-            u.jamRewardAt > 0 &&
-            now - u.jamRewardAt < 60000)
+            u.jamRewardUntil > now &&
+            u.jamRewardCount > 0)
           _infoRow(
             'jam reward',
-            '+${u.jamRewardCount}% · ${fmtClock(60000 - (now - u.jamRewardAt))}',
+            '+${u.jamRewardCount}% · next expires in ${fmtClock(u.jamRewardUntil - now)}',
             valColor: spaceAccent,
           ),
         if (arriving)
