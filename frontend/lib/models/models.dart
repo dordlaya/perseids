@@ -41,9 +41,31 @@ class UserEvent {
   }
 }
 
+enum StarAppearance {
+  haloRing('halo_ring', 'Halo Ring'),
+  particles('particles', 'Particles'),
+  orb('orb', 'Orb'),
+  swirl('swirl', 'Swirl'),
+  coreCircle('core_circle', 'Core Circle'),
+  lens('lens', 'Lens');
+
+  const StarAppearance(this.id, this.label);
+
+  final String id;
+  final String label;
+}
+
+StarAppearance starAppearanceFromId(String? id) {
+  return StarAppearance.values.firstWhere(
+    (appearance) => appearance.id == id,
+    orElse: () => StarAppearance.haloRing,
+  );
+}
+
 class UserSnap {
   final int id;
   final String name;
+  final String appearanceId;
   final double x;
   final double y;
   final double r;
@@ -63,6 +85,7 @@ class UserSnap {
   UserSnap({
     required this.id,
     required this.name,
+    this.appearanceId = 'halo_ring',
     required this.x,
     required this.y,
     required this.r,
@@ -84,6 +107,7 @@ class UserSnap {
     return UserSnap(
       id: json['id'] as int,
       name: json['name'] as String,
+      appearanceId: json['appearanceId'] as String? ?? 'halo_ring',
       x: (json['x'] as num).toDouble(),
       y: (json['y'] as num).toDouble(),
       r: (json['r'] as num).toDouble(),
@@ -102,6 +126,29 @@ class UserSnap {
               ?.map((e) => UserEvent.fromJson(e as Map<String, dynamic>))
               .toList() ??
           const [],
+    );
+  }
+
+  UserSnap copyWith({String? appearanceId}) {
+    return UserSnap(
+      id: id,
+      name: name,
+      appearanceId: appearanceId ?? this.appearanceId,
+      x: x,
+      y: y,
+      r: r,
+      hits: hits,
+      loggedIn: loggedIn,
+      pull: pull,
+      pulse: pulse,
+      createdAt: createdAt,
+      sector: sector,
+      boostAt: boostAt,
+      gravityUntil: gravityUntil,
+      moveReadyAt: moveReadyAt,
+      lastJamAt: lastJamAt,
+      lastJamBy: lastJamBy,
+      events: events,
     );
   }
 }

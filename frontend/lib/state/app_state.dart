@@ -199,6 +199,21 @@ class AppState extends ChangeNotifier {
     return result;
   }
 
+  Future<Map<String, dynamic>> setAppearance(String appearanceId) async {
+    final result = await api.setAppearance(appearanceId);
+    if (result['ok'] != true || sessionUserId == null) return result;
+
+    users = users
+        .map(
+          (user) => user.id == sessionUserId
+              ? user.copyWith(appearanceId: appearanceId)
+              : user,
+        )
+        .toList();
+    notifyListeners();
+    return result;
+  }
+
   void _startHeartbeat() {
     if (sessionUserId == null) return;
     _heartbeatTimer?.cancel();

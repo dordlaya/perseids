@@ -42,6 +42,7 @@ type UserEvent struct {
 type UserRecord struct {
 	ID           int         `json:"id"`
 	Name         string      `json:"name"`
+	AppearanceID string      `json:"appearanceId,omitempty"`
 	Fx           float64     `json:"fx"`
 	Fy           float64     `json:"fy"`
 	Sector       int         `json:"sector,omitempty"`
@@ -226,6 +227,7 @@ func (s *ValkeyStore) Load() (*RosterSnapshot, error) {
 			}
 			snap.Users = append(snap.Users, UserRecord{
 				ID: id, Name: h["name"], Fx: fx, Fy: fy,
+				AppearanceID: h["appearanceId"],
 				Sector:       atoiDefault(h["sector"]),
 				GravityUntil: int64Default(h["gravityUntil"]),
 				MoveReadyAt:  int64Default(h["moveReadyAt"]), R: r,
@@ -258,7 +260,8 @@ func (s *ValkeyStore) SaveChanges(p ChangePayload) error {
 		}
 		eventsJSON, _ := json.Marshal(rec.Events)
 		pipe.HSet(ctx, s.k("user", strconv.Itoa(uid)), map[string]any{
-			"name": rec.Name, "fx": strconv.FormatFloat(rec.Fx, 'g', -1, 64),
+			"name": rec.Name, "appearanceId": rec.AppearanceID,
+			"fx":     strconv.FormatFloat(rec.Fx, 'g', -1, 64),
 			"fy":     strconv.FormatFloat(rec.Fy, 'g', -1, 64),
 			"sector": rec.Sector, "gravityUntil": rec.GravityUntil, "moveReadyAt": rec.MoveReadyAt,
 			"r":    strconv.FormatFloat(rec.R, 'g', -1, 64),

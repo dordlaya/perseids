@@ -21,6 +21,25 @@ import (
 	"time"
 )
 
+const (
+	appearanceHaloRing   = "halo_ring"
+	appearanceParticles  = "particles"
+	appearanceOrb        = "orb"
+	appearanceSwirl      = "swirl"
+	appearanceCoreCircle = "core_circle"
+	appearanceLens       = "lens"
+)
+
+func validAppearanceID(id string) bool {
+	switch id {
+	case appearanceHaloRing, appearanceParticles, appearanceOrb,
+		appearanceSwirl, appearanceCoreCircle, appearanceLens:
+		return true
+	default:
+		return false
+	}
+}
+
 // ---------------------------------------------------------------------------
 // Simulation constants (mirror the Python server exactly)
 // ---------------------------------------------------------------------------
@@ -81,14 +100,15 @@ type User struct {
 	// Persisted
 	ID              int
 	Name            string
+	AppearanceID    string
 	Fx, Fy          float64 // fractional position within its sector [0,1]
 	R               float64 // current radius
 	Hits            int
 	CreatedAt       int64
 	LoggedIn        bool
 	Email           string
-	Pw              string // hashed password
-	LastHeartbeatAt int64  // live presence timestamp; not persisted
+	Pw              string      // hashed password
+	LastHeartbeatAt int64       // live presence timestamp; not persisted
 	Events          []UserEvent // persisted recent event log
 
 	// Live (not persisted)
@@ -102,6 +122,28 @@ type User struct {
 	Jams         map[int]int64 // attacker_id → activated_at_ms
 	LastJamAt    int64
 	LastJamBy    string
+}
+
+func normalizedAppearanceID(id string) string {
+	if validAppearanceID(id) {
+		return id
+	}
+	return appearanceHaloRing
+}
+
+func (s *Sim) SetAppearance(uid int, appearanceID string) StatusResult {
+	if !validAppearanceID(appearanceID) {
+		return StatusResult{Error: "invalid_appearance"}
+	}
+	for _, u := range s.users {
+		if u.ID == uid {
+			u.AppearanceID = appearanceID
+			s.rev++
+			s.markDirty(uid)
+			return StatusResult{OK: true}
+		}
+	}
+	return StatusResult{Error: "not_found"}
 }
 
 // expireHeartbeats marks users dark when their client has stopped reporting.
@@ -146,20 +188,21 @@ type ProbeSnap struct {
 }
 
 type UserSnap struct {
-	ID           int     `json:"id"`
-	Name         string  `json:"name"`
-	X            float64 `json:"x"`
-	Y            float64 `json:"y"`
-	R            float64 `json:"r"`
-	Hits         int     `json:"hits"`
-	LoggedIn     bool    `json:"loggedIn"`
-	Pull         float64 `json:"pull"`
-	Pulse        float64 `json:"pulse"`
-	CreatedAt    int64   `json:"createdAt"`
-	Sector       int     `json:"sector"`
-	BoostAt      int64   `json:"boostAt"`
-	GravityUntil int64   `json:"gravityUntil"`
-	MoveReadyAt  int64   `json:"moveReadyAt"`
+	ID           int         `json:"id"`
+	Name         string      `json:"name"`
+	AppearanceID string      `json:"appearanceId"`
+	X            float64     `json:"x"`
+	Y            float64     `json:"y"`
+	R            float64     `json:"r"`
+	Hits         int         `json:"hits"`
+	LoggedIn     bool        `json:"loggedIn"`
+	Pull         float64     `json:"pull"`
+	Pulse        float64     `json:"pulse"`
+	CreatedAt    int64       `json:"createdAt"`
+	Sector       int         `json:"sector"`
+	BoostAt      int64       `json:"boostAt"`
+	GravityUntil int64       `json:"gravityUntil"`
+	MoveReadyAt  int64       `json:"moveReadyAt"`
 	LastJamAt    int64       `json:"lastJamAt"`
 	LastJamBy    string      `json:"lastJamBy"`
 	Events       []UserEvent `json:"events,omitempty"`
@@ -554,7 +597,8 @@ func (s *Sim) userFromRecord(rec UserRecord) *User {
 		events = []UserEvent{}
 	}
 	return &User{
-		ID: uid, Name: name, Fx: fx, Fy: fy, R: r, Hits: rec.Hits,
+		ID: uid, Name: name, AppearanceID: normalizedAppearanceID(rec.AppearanceID),
+		Fx: fx, Fy: fy, R: r, Hits: rec.Hits,
 		CreatedAt: ca, LoggedIn: rec.LoggedIn,
 		Email: strings.TrimSpace(rec.Email), Pw: rec.Pw,
 		PullForce: pull, Sector: rec.Sector,
@@ -569,9 +613,13 @@ func (s *Sim) userFromRecord(rec UserRecord) *User {
 // ---------------------------------------------------------------------------
 
 // Register adds a new account and star, enforcing unique name + email.
-func (s *Sim) Register(name, email, password string) RegisterResult {
+func (s *Sim) Register(name, email, password string, appearanceIDs ...string) RegisterResult {
 	name = strings.TrimSpace(name)
 	email = strings.TrimSpace(email)
+	appearanceID := appearanceHaloRing
+	if len(appearanceIDs) > 0 && appearanceIDs[0] != "" {
+		appearanceID = appearanceIDs[0]
+	}
 
 	switch {
 	case name == "":
@@ -580,6 +628,8 @@ func (s *Sim) Register(name, email, password string) RegisterResult {
 		return RegisterResult{Error: "bad_email"}
 	case len(password) < pwMinLen:
 		return RegisterResult{Error: "weak_password"}
+	case !validAppearanceID(appearanceID):
+		return RegisterResult{Error: "invalid_appearance"}
 	}
 	nameLower := strings.ToLower(name)
 	emailLower := strings.ToLower(email)
@@ -596,7 +646,7 @@ func (s *Sim) Register(name, email, password string) RegisterResult {
 	}
 	sector := s.firstAvailableSector()
 	u := s.userFromRecord(UserRecord{
-		Name: name, Email: email, Pw: hashPassword(password),
+		Name: name, AppearanceID: appearanceID, Email: email, Pw: hashPassword(password),
 		LoggedIn: true, CreatedAt: nowMs(), R: userRadius,
 		Sector: sector,
 	})
@@ -1100,7 +1150,7 @@ func (s *Sim) snapshot(includeUsers bool) Snapshot {
 		users := make([]UserSnap, len(s.users))
 		for i, u := range s.users {
 			users[i] = UserSnap{
-				ID: u.ID, Name: u.Name,
+				ID: u.ID, Name: u.Name, AppearanceID: normalizedAppearanceID(u.AppearanceID),
 				X: math.Round(u.X*10) / 10, Y: math.Round(u.Y*10) / 10,
 				R: math.Round(u.R*100) / 100, Hits: u.Hits,
 				LoggedIn:  u.LoggedIn,
@@ -1136,7 +1186,8 @@ type rosterPayload struct {
 
 func (s *Sim) persistRecord(u *User) UserRecord {
 	return UserRecord{
-		ID: u.ID, Name: u.Name, Fx: u.Fx, Fy: u.Fy, Sector: u.Sector, R: u.R,
+		ID: u.ID, Name: u.Name, AppearanceID: normalizedAppearanceID(u.AppearanceID),
+		Fx: u.Fx, Fy: u.Fy, Sector: u.Sector, R: u.R,
 		Hits: u.Hits, CreatedAt: u.CreatedAt, LoggedIn: u.LoggedIn,
 		Email: u.Email, Pw: u.Pw, GravityUntil: u.GravityUntil, MoveReadyAt: u.MoveReadyAt,
 		Events: u.Events,

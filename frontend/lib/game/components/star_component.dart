@@ -30,44 +30,47 @@ String starTierName(double r) {
   }
 }
 
-class _TierStyle {
-  final int spikes;
+class _AppearanceStyle {
   final Color glowColor;
   final Color bodyColor;
   final Color pulseColor;
-  const _TierStyle({
-    required this.spikes,
+  const _AppearanceStyle({
     required this.glowColor,
     required this.bodyColor,
     required this.pulseColor,
   });
 }
 
-// Cool blue → warm yellow → orange → deep red/crimson as tier increases.
-const _tierStyles = <StarTier, _TierStyle>{
-  StarTier.protostar: _TierStyle(
-    spikes:     4,
-    glowColor:  Color(0xFFB0D4FF),
-    bodyColor:  Color(0xFFD0E8FF),
-    pulseColor: Color(0xFFB0D8FF),
+const _appearanceStyles = <StarAppearance, _AppearanceStyle>{
+  StarAppearance.haloRing: _AppearanceStyle(
+    glowColor: Color(0xFF74FFD0),
+    bodyColor: Color(0xFFC8FFE9),
+    pulseColor: Color(0xFF9BFFE2),
   ),
-  StarTier.mainSequence: _TierStyle(
-    spikes:     6,
-    glowColor:  Color(0xFFFFD696),
-    bodyColor:  Color(0xFFFFF0D2),
-    pulseColor: Color(0xFFFFD282),
+  StarAppearance.particles: _AppearanceStyle(
+    glowColor: Color(0xFF42DFFF),
+    bodyColor: Color(0xFFE8FFFF),
+    pulseColor: Color(0xFF56E8FF),
   ),
-  StarTier.giant: _TierStyle(
-    spikes:     8,
-    glowColor:  Color(0xFFFFAA50),
-    bodyColor:  Color(0xFFFFCC88),
-    pulseColor: Color(0xFFFFAA40),
+  StarAppearance.orb: _AppearanceStyle(
+    glowColor: Color(0xFF559BFF),
+    bodyColor: Color(0xFFD5ECFF),
+    pulseColor: Color(0xFF79B8FF),
   ),
-  StarTier.supergiant: _TierStyle(
-    spikes:     12,
-    glowColor:  Color(0xFFFF6040),
-    bodyColor:  Color(0xFFFF9868),
-    pulseColor: Color(0xFFFF5020),
+  StarAppearance.swirl: _AppearanceStyle(
+    glowColor: Color(0xFF9F54FF),
+    bodyColor: Color(0xFFE9D1FF),
+    pulseColor: Color(0xFFC18AFF),
+  ),
+  StarAppearance.coreCircle: _AppearanceStyle(
+    glowColor: Color(0xFFFFA52F),
+    bodyColor: Color(0xFFFFE4A8),
+    pulseColor: Color(0xFFFFC45B),
+  ),
+  StarAppearance.lens: _AppearanceStyle(
+    glowColor: Color(0xFF14D8F4),
+    bodyColor: Color(0xFFBFFAFF),
+    pulseColor: Color(0xFF4BEAFF),
   ),
 };
 
@@ -123,23 +126,14 @@ class StarComponent extends Component with TapCallbacks, LongPressCallbacks {
   void render(Canvas canvas) {
     super.render(canvas);
 
-    final tier = starTierOf(user.r);
-    final style = _tierStyles[tier]!;
+    final appearance = starAppearanceFromId(user.appearanceId);
+    final style = _appearanceStyles[appearance]!;
     final pulse = user.pulse;
     final vis = 0.2 + 0.8 * user.pull;
 
     // ── Jam state ────────────────────────────────────────────────────────────
     final nowMs = DateTime.now().millisecondsSinceEpoch;
     final isJammed = user.lastJamAt > 0 && (nowMs - user.lastJamAt) < 60000;
-
-    // ── Outer halo (Supergiant only) ─────────────────────────────────────────
-    if (tier == StarTier.supergiant) {
-      final haloPaint = Paint()
-        ..color = style.glowColor.withOpacity(vis * 0.18)
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, user.r * 1.6)
-        ..blendMode = BlendMode.plus;
-      canvas.drawCircle(Offset(_x, _y), user.r * 1.8, haloPaint);
-    }
 
     // ── Jam interference glow (behind the star) ───────────────────────────────
     if (isJammed) {
@@ -172,7 +166,7 @@ class StarComponent extends Component with TapCallbacks, LongPressCallbacks {
     }
 
     // ── Star Shape ───────────────────────────────────────────────────────────
-    _drawStarShape(canvas, _x, _y, user.r, pulse, vis, style);
+    _drawAppearance(canvas, _x, _y, user.r, pulse, vis, appearance, style);
 
     // ── Jam interference rings (in front of star body) ────────────────────────
     if (isJammed) {
@@ -203,36 +197,122 @@ class StarComponent extends Component with TapCallbacks, LongPressCallbacks {
     }
   }
 
-  void _drawStarShape(
+  void _drawAppearance(
     Canvas canvas,
     double x,
     double y,
     double r,
     double pulse,
     double vis,
-    _TierStyle style,
+    StarAppearance appearance,
+    _AppearanceStyle style,
   ) {
-    final spikes = style.spikes;
-    final outer = r + pulse * 3;
-    final inner = outer * 0.4;
-    final path = Path();
-
-    for (int i = 0; i < spikes * 2; i++) {
-      final rad = i % 2 == 0 ? outer : inner;
-      final a = (pi / spikes) * i - pi / 2;
-      final px = x + cos(a) * rad;
-      final py = y + sin(a) * rad;
-      if (i == 0) {
-        path.moveTo(px, py);
-      } else {
-        path.lineTo(px, py);
-      }
-    }
-    path.close();
-
-    final shapePaint = Paint()
+    final center = Offset(x, y);
+    final coreRadius = r * (1 + pulse * 0.08);
+    final corePaint = Paint()
       ..color = style.bodyColor.withOpacity(0.9 * vis)
+      ..shader = RadialGradient(
+        colors: [Colors.white, style.bodyColor, style.glowColor.withOpacity(0.25)],
+      ).createShader(Rect.fromCircle(center: center, radius: coreRadius))
       ..blendMode = BlendMode.plus;
-    canvas.drawPath(path, shapePaint);
+    final ringPaint = Paint()
+      ..color = style.glowColor.withOpacity(vis * 0.85)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = max(1.2, r * 0.055);
+    final fineRingPaint = Paint()
+      ..color = style.pulseColor.withOpacity(vis * 0.65)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = max(0.7, r * 0.025);
+
+    switch (appearance) {
+      case StarAppearance.haloRing:
+        canvas.drawCircle(center, r * 0.66, corePaint);
+        canvas.drawCircle(center, r * 0.82, ringPaint);
+        canvas.drawCircle(center, r * 0.98, fineRingPaint);
+        canvas.drawCircle(center, r * 1.12, ringPaint..strokeWidth *= 0.55);
+      case StarAppearance.particles:
+        canvas.drawCircle(center, r * 0.23, corePaint);
+        for (var i = 0; i < 36; i++) {
+          final angle = i * 2 * pi / 36;
+          final radius = r * (0.38 + (i % 3) * 0.18);
+          final point = Offset(
+            x + cos(angle) * radius,
+            y + sin(angle) * radius,
+          );
+          canvas.drawCircle(
+            point,
+            max(0.7, r * (i % 4 == 0 ? 0.045 : 0.025)),
+            Paint()..color = style.glowColor.withOpacity(vis * 0.9),
+          );
+        }
+      case StarAppearance.orb:
+        canvas.drawCircle(center, r * 0.8, corePaint);
+        canvas.save();
+        canvas.translate(x, y);
+        canvas.rotate(-0.35);
+        canvas.drawOval(
+          Rect.fromCenter(center: Offset.zero, width: r * 2.4, height: r * 0.72),
+          fineRingPaint,
+        );
+        canvas.restore();
+        canvas.drawCircle(
+          Offset(x + r * 0.56, y - r * 0.32),
+          max(1.5, r * 0.08),
+          Paint()..color = Colors.white.withOpacity(vis),
+        );
+      case StarAppearance.swirl:
+        for (var arm = 0; arm < 3; arm++) {
+          final path = Path();
+          for (var i = 0; i <= 60; i++) {
+            final progress = i / 60;
+            final angle = progress * 2.8 * pi + arm * 2 * pi / 3;
+            final radius = r * (0.08 + progress * 0.82);
+            final point = Offset(
+              x + cos(angle) * radius,
+              y + sin(angle) * radius,
+            );
+            if (i == 0) {
+              path.moveTo(point.dx, point.dy);
+            } else {
+              path.lineTo(point.dx, point.dy);
+            }
+          }
+          canvas.drawPath(
+            path,
+            Paint()
+              ..color = style.glowColor.withOpacity(vis * 0.82)
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = max(1.2, r * 0.19)
+              ..strokeCap = StrokeCap.round,
+          );
+        }
+        canvas.drawCircle(center, r * 0.28, corePaint);
+      case StarAppearance.coreCircle:
+        canvas.drawCircle(center, r * 0.52, corePaint);
+        canvas.drawCircle(center, r * 0.74, ringPaint);
+        canvas.drawCircle(center, r * 0.95, fineRingPaint);
+        canvas.drawArc(
+          Rect.fromCircle(center: center, radius: r * 1.12),
+          pi * 1.1,
+          pi * 0.65,
+          false,
+          ringPaint..strokeWidth *= 0.7,
+        );
+      case StarAppearance.lens:
+        canvas.drawCircle(center, r * 0.86, corePaint);
+        canvas.drawOval(
+          Rect.fromCenter(center: center, width: r * 2.1, height: r * 0.62),
+          ringPaint,
+        );
+        canvas.drawOval(
+          Rect.fromCenter(center: center, width: r * 1.82, height: r * 0.42),
+          fineRingPaint,
+        );
+        canvas.drawCircle(
+          Offset(x + r * 0.7, y + r * 0.35),
+          max(1.5, r * 0.075),
+          Paint()..color = Colors.white.withOpacity(vis),
+        );
+    }
   }
 }

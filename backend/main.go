@@ -221,6 +221,8 @@ func main() {
 		requireAuth(sessions)(handleJam(sim)))
 	mux.Handle("POST /api/move",
 		requireAuth(sessions)(handleMove(sim, store)))
+	mux.Handle("POST /api/appearance",
+		requireAuth(sessions)(handleSetAppearance(sim, store)))
 	mux.Handle("POST /api/reset",
 		requireAdmin(handleReset(sim, store)))
 	mux.HandleFunc("GET /ws", handleWebSocket(sim, hub))

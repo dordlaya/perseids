@@ -53,6 +53,7 @@ class _LoginOverlayState extends State<LoginOverlay> {
   final TextEditingController passwordController = TextEditingController();
   final TextEditingController nameController = TextEditingController();
   final TextEditingController emailController = TextEditingController();
+  StarAppearance selectedAppearance = StarAppearance.haloRing;
   String? error;
 
   void submit(AppState state) async {
@@ -75,6 +76,7 @@ class _LoginOverlayState extends State<LoginOverlay> {
         nameController.text,
         emailController.text,
         passwordController.text,
+        appearanceId: selectedAppearance.id,
       );
       if (res['ok'] == true) {
         state.setSession(res['id'], res['name'], res['token'] as String);
@@ -178,6 +180,20 @@ class _LoginOverlayState extends State<LoginOverlay> {
                   _input(emailController, 'Email'),
                   const SizedBox(height: 12),
                   _input(passwordController, 'Password', obscure: true),
+                  const SizedBox(height: 18),
+                  const Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'Choose your star',
+                      style: TextStyle(color: spaceTextSecondary, fontSize: 12),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  _StarAppearanceChoiceStrip(
+                    selected: selectedAppearance,
+                    onSelected: (appearance) =>
+                        setState(() => selectedAppearance = appearance),
+                  ),
                 ],
                 const SizedBox(height: 24),
                 if (error != null)
@@ -230,6 +246,148 @@ class _LoginOverlayState extends State<LoginOverlay> {
       ),
     );
   }
+}
+
+class _StarAppearanceChoiceStrip extends StatelessWidget {
+  final StarAppearance selected;
+  final ValueChanged<StarAppearance> onSelected;
+
+  const _StarAppearanceChoiceStrip({
+    required this.selected,
+    required this.onSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 78,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: StarAppearance.values.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 6),
+        itemBuilder: (context, index) {
+          final appearance = StarAppearance.values[index];
+          final isSelected = appearance == selected;
+          return InkWell(
+            borderRadius: BorderRadius.circular(8),
+            onTap: () => onSelected(appearance),
+            child: Container(
+              width: 82,
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 5),
+              decoration: BoxDecoration(
+                color: isSelected ? spaceAccent.withOpacity(0.14) : Colors.transparent,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: isSelected ? spaceAccent.withOpacity(0.65) : spaceBorder,
+                ),
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CustomPaint(
+                    size: const Size(34, 34),
+                    painter: _AppearanceSwatchPainter(appearance),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    appearance.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: isSelected ? spaceAccent : spaceTextSecondary,
+                      fontSize: 9,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _AppearanceSwatchPainter extends CustomPainter {
+  final StarAppearance appearance;
+
+  const _AppearanceSwatchPainter(this.appearance);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final color = switch (appearance) {
+      StarAppearance.haloRing => const Color(0xFF7CFFCF),
+      StarAppearance.particles => const Color(0xFF55DFFF),
+      StarAppearance.orb => const Color(0xFF62AFFF),
+      StarAppearance.swirl => const Color(0xFFB36CFF),
+      StarAppearance.coreCircle => const Color(0xFFFFB347),
+      StarAppearance.lens => const Color(0xFF25D9F2),
+    };
+    final glow = Paint()
+      ..color = color.withOpacity(0.35)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
+    canvas.drawCircle(center, size.width * 0.36, glow);
+
+    final fill = Paint()
+      ..shader = RadialGradient(
+        colors: [Colors.white, color.withOpacity(0.75), color.withOpacity(0.08)],
+      ).createShader(Rect.fromCircle(center: center, radius: size.width * 0.34));
+    canvas.drawCircle(center, size.width * 0.3, fill);
+
+    final ring = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.2;
+    switch (appearance) {
+      case StarAppearance.haloRing:
+      case StarAppearance.coreCircle:
+        canvas.drawCircle(center, size.width * 0.38, ring);
+        canvas.drawCircle(center, size.width * 0.47, ring..strokeWidth = 0.8);
+      case StarAppearance.particles:
+        for (var i = 0; i < 12; i++) {
+          final angle = i * 2 * pi / 12;
+          canvas.drawCircle(
+            Offset(
+              center.dx + cos(angle) * size.width * 0.43,
+              center.dy + sin(angle) * size.height * 0.43,
+            ),
+            0.9,
+            Paint()..color = color,
+          );
+        }
+      case StarAppearance.orb:
+      case StarAppearance.lens:
+        canvas.drawOval(
+          Rect.fromCenter(
+            center: center,
+            width: size.width * 0.9,
+            height: size.height * 0.34,
+          ),
+          ring,
+        );
+      case StarAppearance.swirl:
+        final path = Path();
+        for (var i = 0; i <= 50; i++) {
+          final t = i / 50 * 2.5 * pi;
+          final radius = size.width * 0.04 + size.width * 0.36 * i / 50;
+          final point = Offset(
+            center.dx + cos(t) * radius,
+            center.dy + sin(t) * radius,
+          );
+          if (i == 0) {
+            path.moveTo(point.dx, point.dy);
+          } else {
+            path.lineTo(point.dx, point.dy);
+          }
+        }
+        canvas.drawPath(path, ring);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_AppearanceSwatchPainter oldDelegate) =>
+      oldDelegate.appearance != appearance;
 }
 
 // ---------------------------------------------------------------------------
@@ -989,6 +1147,17 @@ class StarInfoOverlay extends StatelessWidget {
         ),
         if (u.id == state.sessionUserId) ...[
           const SizedBox(height: 12),
+          OutlinedButton.icon(
+            style: OutlinedButton.styleFrom(
+              foregroundColor: spaceAccent,
+              side: const BorderSide(color: spaceAccent),
+              minimumSize: const Size.fromHeight(38),
+            ),
+            onPressed: () => _openAppearanceDialog(context, state, u),
+            icon: const Icon(Icons.palette_outlined, size: 16),
+            label: const Text('Customize star'),
+          ),
+          const SizedBox(height: 8),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: spaceStar,
@@ -1152,6 +1321,83 @@ class StarInfoOverlay extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+
+  Future<void> _openAppearanceDialog(
+    BuildContext context,
+    AppState state,
+    UserSnap user,
+  ) async {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        var selected = starAppearanceFromId(user.appearanceId);
+        var saving = false;
+        String? error;
+        return StatefulBuilder(
+          builder: (context, setDialogState) => AlertDialog(
+            backgroundColor: const Color(0xFF081321),
+            title: const Text(
+              'Customize your star',
+              style: TextStyle(color: spaceTextPrimary),
+            ),
+            content: SizedBox(
+              width: 360,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Your star keeps this design as it grows and shrinks.',
+                    style: TextStyle(color: spaceTextSecondary, fontSize: 12),
+                  ),
+                  const SizedBox(height: 14),
+                  _StarAppearanceChoiceStrip(
+                    selected: selected,
+                    onSelected: (appearance) {
+                      setDialogState(() {
+                        selected = appearance;
+                        error = null;
+                      });
+                    },
+                  ),
+                  if (error != null) ...[
+                    const SizedBox(height: 8),
+                    Text(error!, style: const TextStyle(color: spaceDanger)),
+                  ],
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: saving
+                    ? null
+                    : () => Navigator.of(dialogContext).pop(),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: saving
+                    ? null
+                    : () async {
+                        setDialogState(() => saving = true);
+                        final result = await state.setAppearance(selected.id);
+                        if (!dialogContext.mounted) return;
+                        if (result['ok'] == true) {
+                          Navigator.of(dialogContext).pop();
+                        } else {
+                          setDialogState(() {
+                            saving = false;
+                            error = 'Could not save star appearance.';
+                          });
+                        }
+                      },
+                child: Text(saving ? 'Saving…' : 'Save'),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 

@@ -41,9 +41,10 @@ var wsUpgrader = websocket.Upgrader{
 // ---------------------------------------------------------------------------
 
 type RegisterReq struct {
-	Name     string `json:"name"`
-	Email    string `json:"email"`
-	Password string `json:"password"`
+	Name         string `json:"name"`
+	Email        string `json:"email"`
+	Password     string `json:"password"`
+	AppearanceID string `json:"appearanceId"`
 }
 
 type LoginReq struct {
@@ -76,6 +77,10 @@ type JamReq struct {
 
 type MoveReq struct {
 	Sector int `json:"sector"`
+}
+
+type AppearanceReq struct {
+	AppearanceID string `json:"appearanceId"`
 }
 
 // ---------------------------------------------------------------------------
@@ -287,7 +292,7 @@ func handleRegister(sim *Sim, store Store, sessions *SessionStore) http.HandlerF
 			return
 		}
 		sim.mu.Lock()
-		res := sim.Register(req.Name, req.Email, req.Password)
+		res := sim.Register(req.Name, req.Email, req.Password, req.AppearanceID)
 		sim.mu.Unlock()
 		if !res.OK {
 			writeJSON(w, http.StatusBadRequest, authResponse{Error: res.Error})
@@ -302,6 +307,30 @@ func handleRegister(sim *Sim, store Store, sessions *SessionStore) http.HandlerF
 		}
 		writeJSON(w, http.StatusOK,
 			authResponse{OK: true, ID: res.ID, Name: res.Name, Token: token})
+	}
+}
+
+func handleSetAppearance(sim *Sim, store Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req AppearanceReq
+		if !decodeBody(w, r, &req) {
+			return
+		}
+		uid := userIDFromContext(r)
+		sim.mu.Lock()
+		res := sim.SetAppearance(uid, req.AppearanceID)
+		sim.mu.Unlock()
+		if res.OK {
+			persistNow(sim, store)
+		}
+		status := http.StatusOK
+		if !res.OK {
+			status = http.StatusBadRequest
+			if res.Error == "not_found" {
+				status = http.StatusNotFound
+			}
+		}
+		writeJSON(w, status, res)
 	}
 }
 

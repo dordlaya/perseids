@@ -127,12 +127,22 @@ class ApiClient {
   /// so subsequent calls are authenticated — callers don't need to thread it
   /// through manually, but AppState should still persist it (see
   /// AppState.setSession) so it survives a page refresh.
-  Future<Map<String, dynamic>> register(String name, String email, String password) async {
+  Future<Map<String, dynamic>> register(
+    String name,
+    String email,
+    String password, {
+    String appearanceId = 'halo_ring',
+  }) async {
     try {
       final res = await http.post(
         Uri.parse('$baseUrl/register'),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'name': name, 'email': email, 'password': password}),
+        body: jsonEncode({
+          'name': name,
+          'email': email,
+          'password': password,
+          'appearanceId': appearanceId,
+        }),
       );
       final data = jsonDecode(res.body) as Map<String, dynamic>;
       if (data['ok'] == true && data['token'] is String) {
@@ -249,6 +259,18 @@ class ApiClient {
   Future<Map<String, dynamic>> move(int sector) async {
     try {
       final res = await _postAuthed('move', body: {'sector': sector});
+      return jsonDecode(res.body);
+    } catch (e) {
+      return {'ok': false, 'error': 'network'};
+    }
+  }
+
+  Future<Map<String, dynamic>> setAppearance(String appearanceId) async {
+    try {
+      final res = await _postAuthed(
+        'appearance',
+        body: {'appearanceId': appearanceId},
+      );
       return jsonDecode(res.body);
     } catch (e) {
       return {'ok': false, 'error': 'network'};
