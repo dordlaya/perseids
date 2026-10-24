@@ -190,7 +190,7 @@ class _LoginOverlayState extends State<LoginOverlay> {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  _StarAppearanceChoiceStrip(
+                  _StarAppearanceChoiceGrid(
                     selected: selectedAppearance,
                     onSelected: (appearance) =>
                         setState(() => selectedAppearance = appearance),
