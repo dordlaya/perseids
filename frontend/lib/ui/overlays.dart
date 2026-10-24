@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import 'dart:async';
 
 import '../state/app_state.dart';
@@ -275,10 +276,14 @@ class _StarAppearanceChoiceStrip extends StatelessWidget {
               width: 82,
               padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 5),
               decoration: BoxDecoration(
-                color: isSelected ? spaceAccent.withOpacity(0.14) : Colors.transparent,
+                color: isSelected
+                    ? spaceAccent.withOpacity(0.14)
+                    : Colors.transparent,
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
-                  color: isSelected ? spaceAccent.withOpacity(0.65) : spaceBorder,
+                  color: isSelected
+                      ? spaceAccent.withOpacity(0.65)
+                      : spaceBorder,
                 ),
               ),
               child: Column(
@@ -296,6 +301,73 @@ class _StarAppearanceChoiceStrip extends StatelessWidget {
                     style: TextStyle(
                       color: isSelected ? spaceAccent : spaceTextSecondary,
                       fontSize: 9,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _StarAppearanceChoiceGrid extends StatelessWidget {
+  final StarAppearance selected;
+  final ValueChanged<StarAppearance> onSelected;
+
+  const _StarAppearanceChoiceGrid({
+    required this.selected,
+    required this.onSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 180,
+      child: GridView.builder(
+        itemCount: StarAppearance.values.length,
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 3,
+          crossAxisSpacing: 8,
+          mainAxisSpacing: 8,
+          childAspectRatio: 1,
+        ),
+        itemBuilder: (context, index) {
+          final appearance = StarAppearance.values[index];
+          final isSelected = appearance == selected;
+          return InkWell(
+            borderRadius: BorderRadius.circular(8),
+            onTap: () => onSelected(appearance),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 5),
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? spaceAccent.withOpacity(0.14)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: isSelected
+                      ? spaceAccent.withOpacity(0.65)
+                      : spaceBorder,
+                ),
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CustomPaint(
+                    size: const Size(42, 42),
+                    painter: _AppearanceSwatchPainter(appearance),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    appearance.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: isSelected ? spaceAccent : spaceTextSecondary,
+                      fontSize: 10,
                     ),
                   ),
                 ],
@@ -330,9 +402,16 @@ class _AppearanceSwatchPainter extends CustomPainter {
     canvas.drawCircle(center, size.width * 0.36, glow);
 
     final fill = Paint()
-      ..shader = RadialGradient(
-        colors: [Colors.white, color.withOpacity(0.75), color.withOpacity(0.08)],
-      ).createShader(Rect.fromCircle(center: center, radius: size.width * 0.34));
+      ..shader =
+          RadialGradient(
+            colors: [
+              Colors.white,
+              color.withOpacity(0.75),
+              color.withOpacity(0.08),
+            ],
+          ).createShader(
+            Rect.fromCircle(center: center, radius: size.width * 0.34),
+          );
     canvas.drawCircle(center, size.width * 0.3, fill);
 
     final ring = Paint()
@@ -561,7 +640,9 @@ class SessionBarOverlay extends StatelessWidget {
                   InkWell(
                     onTap: () => state.logout(),
                     child: Text(
-                      AppState.preserveUsersOnLogout ? 'Switch User' : 'Log Out',
+                      AppState.preserveUsersOnLogout
+                          ? 'Switch User'
+                          : 'Log Out',
                       style: TextStyle(color: spaceTextSecondary, fontSize: 12),
                     ),
                   ),
@@ -663,11 +744,15 @@ class _GamePanelOverlayState extends State<GamePanelOverlay> {
     targetUser ??= state.previewUserId != null
         ? state.getUserById(state.previewUserId!)
         : null;
-    targetUser ??= state.sessionUserId != null ? state.getUserById(state.sessionUserId!) : null;
+    targetUser ??= state.sessionUserId != null
+        ? state.getUserById(state.sessionUserId!)
+        : null;
     if (targetUser == null && state.users.isNotEmpty) {
       targetUser = state.users.first;
     }
-    final events = targetUser != null ? List<UserEvent>.from(targetUser.events.reversed) : <UserEvent>[];
+    final events = targetUser != null
+        ? List<UserEvent>.from(targetUser.events.reversed)
+        : <UserEvent>[];
     final logTargetName = targetUser != null ? targetUser.name : 'No Star';
 
     return Positioned(
@@ -716,7 +801,9 @@ class _GamePanelOverlayState extends State<GamePanelOverlay> {
                               ? BoxDecoration(
                                   color: spaceAccent.withOpacity(0.18),
                                   borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(color: spaceAccent.withOpacity(0.4)),
+                                  border: Border.all(
+                                    color: spaceAccent.withOpacity(0.4),
+                                  ),
                                 )
                               : null,
                           child: Text(
@@ -754,7 +841,9 @@ class _GamePanelOverlayState extends State<GamePanelOverlay> {
                               ? BoxDecoration(
                                   color: spaceAccent.withOpacity(0.18),
                                   borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(color: spaceAccent.withOpacity(0.4)),
+                                  border: Border.all(
+                                    color: spaceAccent.withOpacity(0.4),
+                                  ),
                                 )
                               : null,
                           child: Text(
@@ -773,9 +862,14 @@ class _GamePanelOverlayState extends State<GamePanelOverlay> {
                         iconSize: 16,
                         splashRadius: 16,
                         padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                        constraints: const BoxConstraints(
+                          minWidth: 28,
+                          minHeight: 28,
+                        ),
                         icon: Icon(
-                          expanded ? Icons.keyboard_arrow_down : Icons.keyboard_arrow_right,
+                          expanded
+                              ? Icons.keyboard_arrow_down
+                              : Icons.keyboard_arrow_right,
                           color: spaceTextSecondary,
                         ),
                         onPressed: () => setState(() => expanded = !expanded),
@@ -790,11 +884,19 @@ class _GamePanelOverlayState extends State<GamePanelOverlay> {
                   if (activeTab == 0)
                     // LEADERBOARD VIEW
                     Container(
-                      constraints: BoxConstraints(maxHeight: isMobile ? 240 : 360),
+                      constraints: BoxConstraints(
+                        maxHeight: isMobile ? 240 : 360,
+                      ),
                       child: top10.isEmpty
                           ? const Padding(
                               padding: EdgeInsets.all(16.0),
-                              child: Text('No stars yet', style: TextStyle(color: spaceTextSecondary, fontSize: 11.5)),
+                              child: Text(
+                                'No stars yet',
+                                style: TextStyle(
+                                  color: spaceTextSecondary,
+                                  fontSize: 11.5,
+                                ),
+                              ),
                             )
                           : ListView.builder(
                               shrinkWrap: true,
@@ -808,29 +910,44 @@ class _GamePanelOverlayState extends State<GamePanelOverlay> {
                                 return InkWell(
                                   onTap: () => _focusUser(state, u.id),
                                   child: Container(
-                                    color: isSelected ? spaceAccent.withOpacity(0.1) : Colors.transparent,
-                                    padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 5.0),
+                                    color: isSelected
+                                        ? spaceAccent.withOpacity(0.1)
+                                        : Colors.transparent,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10.0,
+                                      vertical: 5.0,
+                                    ),
                                     child: Row(
                                       children: [
                                         SizedBox(
                                           width: 20,
                                           child: Text(
                                             '${i + 1}',
-                                            style: const TextStyle(color: spaceTextSecondary, fontSize: 11),
+                                            style: const TextStyle(
+                                              color: spaceTextSecondary,
+                                              fontSize: 11,
+                                            ),
                                           ),
                                         ),
                                         Expanded(
                                           child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
                                             children: [
                                               Text(
                                                 u.name,
-                                                style: const TextStyle(color: spaceTextPrimary, fontSize: 12),
+                                                style: const TextStyle(
+                                                  color: spaceTextPrimary,
+                                                  fontSize: 12,
+                                                ),
                                                 overflow: TextOverflow.ellipsis,
                                               ),
                                               Text(
                                                 getSectorName(u.sector),
-                                                style: const TextStyle(color: spaceTextSecondary, fontSize: 10),
+                                                style: const TextStyle(
+                                                  color: spaceTextSecondary,
+                                                  fontSize: 10,
+                                                ),
                                                 overflow: TextOverflow.ellipsis,
                                               ),
                                             ],
@@ -838,7 +955,10 @@ class _GamePanelOverlayState extends State<GamePanelOverlay> {
                                         ),
                                         Text(
                                           '${u.r.toStringAsFixed(1)}px',
-                                          style: const TextStyle(color: spaceStar, fontSize: 11),
+                                          style: const TextStyle(
+                                            color: spaceStar,
+                                            fontSize: 11,
+                                          ),
                                         ),
                                         const SizedBox(width: 6),
                                         Container(
@@ -846,7 +966,9 @@ class _GamePanelOverlayState extends State<GamePanelOverlay> {
                                           height: 6,
                                           decoration: BoxDecoration(
                                             shape: BoxShape.circle,
-                                            color: u.loggedIn ? spaceOnline : spaceOffline,
+                                            color: u.loggedIn
+                                                ? spaceOnline
+                                                : spaceOffline,
                                           ),
                                         ),
                                       ],
@@ -859,20 +981,35 @@ class _GamePanelOverlayState extends State<GamePanelOverlay> {
                   else
                     // LOG VIEW
                     Container(
-                      constraints: BoxConstraints(maxHeight: isMobile ? 240 : 360),
+                      constraints: BoxConstraints(
+                        maxHeight: isMobile ? 240 : 360,
+                      ),
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 4,
+                            ),
                             color: const Color(0x22000000),
                             child: Row(
                               children: [
-                                const Text('Target: ', style: TextStyle(color: spaceTextSecondary, fontSize: 10.5)),
+                                const Text(
+                                  'Target: ',
+                                  style: TextStyle(
+                                    color: spaceTextSecondary,
+                                    fontSize: 10.5,
+                                  ),
+                                ),
                                 Expanded(
                                   child: Text(
                                     logTargetName,
-                                    style: const TextStyle(color: spaceAccent, fontSize: 11, fontWeight: FontWeight.w500),
+                                    style: const TextStyle(
+                                      color: spaceAccent,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w500,
+                                    ),
                                     overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
@@ -886,13 +1023,19 @@ class _GamePanelOverlayState extends State<GamePanelOverlay> {
                                       padding: EdgeInsets.all(16.0),
                                       child: Text(
                                         'No actions recorded yet',
-                                        style: TextStyle(color: spaceTextSecondary, fontSize: 11.5),
+                                        style: TextStyle(
+                                          color: spaceTextSecondary,
+                                          fontSize: 11.5,
+                                        ),
                                       ),
                                     ),
                                   )
                                 : ListView.separated(
                                     shrinkWrap: true,
-                                    padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 6.0),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10.0,
+                                      vertical: 6.0,
+                                    ),
                                     itemCount: events.length,
                                     separatorBuilder: (_, __) => Divider(
                                       color: spaceBorder.withOpacity(0.3),
@@ -901,18 +1044,24 @@ class _GamePanelOverlayState extends State<GamePanelOverlay> {
                                     itemBuilder: (context, i) {
                                       final ev = events[i];
                                       return Padding(
-                                        padding: const EdgeInsets.symmetric(vertical: 2.0),
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 2.0,
+                                        ),
                                         child: Row(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
                                           children: [
                                             Padding(
-                                              padding: const EdgeInsets.only(top: 2.0),
+                                              padding: const EdgeInsets.only(
+                                                top: 2.0,
+                                              ),
                                               child: _eventIcon(ev.type),
                                             ),
                                             const SizedBox(width: 8),
                                             Expanded(
                                               child: Column(
-                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
                                                 children: [
                                                   Text(
                                                     ev.msg,
@@ -936,9 +1085,15 @@ class _GamePanelOverlayState extends State<GamePanelOverlay> {
                                                 targetUser != null &&
                                                 ev.actorId != targetUser.id)
                                               InkWell(
-                                                onTap: () => _focusUser(state, ev.actorId!),
+                                                onTap: () => _focusUser(
+                                                  state,
+                                                  ev.actorId!,
+                                                ),
                                                 child: const Padding(
-                                                  padding: EdgeInsets.only(left: 4.0, top: 2.0),
+                                                  padding: EdgeInsets.only(
+                                                    left: 4.0,
+                                                    top: 2.0,
+                                                  ),
                                                   child: Icon(
                                                     Icons.my_location,
                                                     size: 13,
@@ -992,10 +1147,10 @@ class StarPreviewOverlay extends StatelessWidget {
     final statusColor = jammed
         ? spaceDanger
         : boosted
-            ? spaceStar
-            : user.loggedIn
-                ? spaceOnline
-                : spaceOffline;
+        ? spaceStar
+        : user.loggedIn
+        ? spaceOnline
+        : spaceOffline;
     final status = [
       user.loggedIn ? 'online' : 'offline',
       if (jammed) 'jammed',
@@ -1027,9 +1182,7 @@ class StarPreviewOverlay extends StatelessWidget {
                       decoration: BoxDecoration(
                         color: spaceAccent.withOpacity(0.16),
                         shape: BoxShape.circle,
-                        border: Border.all(
-                          color: spaceAccent.withOpacity(0.4),
-                        ),
+                        border: Border.all(color: spaceAccent.withOpacity(0.4)),
                       ),
                       child: const Icon(
                         Icons.auto_awesome,
@@ -1078,10 +1231,7 @@ class StarPreviewOverlay extends StatelessWidget {
                 const SizedBox(height: 6),
                 const Text(
                   'Tap again for details',
-                  style: TextStyle(
-                    color: spaceTextSecondary,
-                    fontSize: 10,
-                  ),
+                  style: TextStyle(color: spaceTextSecondary, fontSize: 10),
                 ),
               ],
             ),
@@ -1106,8 +1256,9 @@ class StarInfoOverlay extends StatelessWidget {
     final boosted = u.boostAt > 0 && (now - u.boostAt) < 60000;
     final arriving = u.gravityUntil > now;
     final jamCooldownUntil = state.jamCooldownUntilFor(u.id);
-    final jamCooldownRemaining =
-        jamCooldownUntil > now ? jamCooldownUntil - now : 0;
+    final jamCooldownRemaining = jamCooldownUntil > now
+        ? jamCooldownUntil - now
+        : 0;
 
     final statusColor = arriving
         ? spaceAccent
@@ -1200,18 +1351,16 @@ class StarInfoOverlay extends StatelessWidget {
               ),
               minimumSize: const Size.fromHeight(38),
             ),
-            onPressed: !u.loggedIn ||
-                    arriving ||
-                    boosted ||
-                    jamCooldownRemaining > 0
+            onPressed:
+                !u.loggedIn || arriving || boosted || jamCooldownRemaining > 0
                 ? null
                 : () => state.jam(u.id),
             child: Text(
               boosted
                   ? 'Boosted (Immune)'
                   : jamCooldownRemaining > 0
-                      ? 'You can jam again in ${fmtClock(jamCooldownRemaining)}'
-                      : (jammed ? 'Jam again (−25%)' : 'Jam −25%'),
+                  ? 'You can jam again in ${fmtClock(jamCooldownRemaining)}'
+                  : (jammed ? 'Jam again (−25%)' : 'Jam −25%'),
             ),
           ),
         ],
@@ -1337,6 +1486,7 @@ class StarInfoOverlay extends StatelessWidget {
         String? error;
         return StatefulBuilder(
           builder: (context, setDialogState) => AlertDialog(
+            scrollable: true,
             backgroundColor: const Color(0xFF081321),
             title: const Text(
               'Customize your star',
@@ -1353,7 +1503,7 @@ class StarInfoOverlay extends StatelessWidget {
                     style: TextStyle(color: spaceTextSecondary, fontSize: 12),
                   ),
                   const SizedBox(height: 14),
-                  _StarAppearanceChoiceStrip(
+                  _StarAppearanceChoiceGrid(
                     selected: selected,
                     onSelected: (appearance) {
                       setDialogState(() {
@@ -1542,7 +1692,10 @@ class ControlsOverlay extends StatelessWidget {
   void zoom(double factor) {
     if (game != null) {
       final z = game!.camera.viewfinder.zoom * factor;
-      game!.camera.viewfinder.zoom = z.clamp(game!.dynamicMinZoom, SpaceMapGame.maxZoomLimit);
+      game!.camera.viewfinder.zoom = z.clamp(
+        game!.dynamicMinZoom,
+        SpaceMapGame.maxZoomLimit,
+      );
     }
   }
 
@@ -1591,16 +1744,12 @@ class ControlsOverlay extends StatelessWidget {
                   foregroundColor: isBoosting
                       ? Colors.white
                       : (isJammed
-                          ? spaceDanger.withOpacity(0.5)
-                          : (canBoost ? spaceAccent : spaceTextSecondary)),
+                            ? spaceDanger.withOpacity(0.5)
+                            : (canBoost ? spaceAccent : spaceTextSecondary)),
                   elevation: 4,
-                  onPressed: canBoost
-                      ? () => state.api.boost()
-                      : null,
+                  onPressed: canBoost ? () => state.api.boost() : null,
                   child: Text(
-                    cooldown > 0
-                        ? fmtClock(cooldown)
-                        : (isJammed ? '🚫' : '⚡'),
+                    cooldown > 0 ? fmtClock(cooldown) : (isJammed ? '🚫' : '⚡'),
                     style: TextStyle(
                       fontSize: cooldown > 0 ? 11 : (isJammed ? 16 : 22),
                       color: isJammed && !isBoosting
@@ -1712,7 +1861,8 @@ class _JamToastOverlayState extends State<JamToastOverlay>
       });
     }
 
-    if (msg == null && _displayedMessage == null) return const SizedBox.shrink();
+    if (msg == null && _displayedMessage == null)
+      return const SizedBox.shrink();
 
     return Positioned(
       top: 80,
@@ -1743,7 +1893,10 @@ class _JamToastOverlayState extends State<JamToastOverlay>
               child: BackdropFilter(
                 filter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 10,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xCC1A0505),
                     borderRadius: BorderRadius.circular(999),
@@ -1880,7 +2033,11 @@ class _TopNavOverlayState extends State<TopNavOverlay> {
                         width: 40,
                         height: 40,
                         decoration: _glassDecoration(10),
-                        child: const Icon(Icons.search, color: spaceAccent, size: 20),
+                        child: const Icon(
+                          Icons.search,
+                          color: spaceAccent,
+                          size: 20,
+                        ),
                       ),
                     ),
                   ),
@@ -1897,17 +2054,27 @@ class _TopNavOverlayState extends State<TopNavOverlay> {
                       decoration: _glassDecoration(10),
                       child: Row(
                         children: [
-                          const Icon(Icons.search, color: spaceAccent, size: 18),
+                          const Icon(
+                            Icons.search,
+                            color: spaceAccent,
+                            size: 18,
+                          ),
                           const SizedBox(width: 6),
                           Expanded(
                             child: TextField(
                               controller: _searchController,
                               autofocus: true,
                               onChanged: (v) => _runSearch(state, v),
-                              style: const TextStyle(color: spaceTextPrimary, fontSize: 12.5),
+                              style: const TextStyle(
+                                color: spaceTextPrimary,
+                                fontSize: 12.5,
+                              ),
                               decoration: const InputDecoration(
                                 hintText: 'Search star/sector...',
-                                hintStyle: TextStyle(color: spaceTextSecondary, fontSize: 12),
+                                hintStyle: TextStyle(
+                                  color: spaceTextSecondary,
+                                  fontSize: 12,
+                                ),
                                 border: InputBorder.none,
                                 isDense: true,
                                 contentPadding: EdgeInsets.zero,
@@ -1917,7 +2084,10 @@ class _TopNavOverlayState extends State<TopNavOverlay> {
                           IconButton(
                             iconSize: 16,
                             splashRadius: 16,
-                            icon: const Icon(Icons.close, color: spaceTextSecondary),
+                            icon: const Icon(
+                              Icons.close,
+                              color: spaceTextSecondary,
+                            ),
                             onPressed: () {
                               setState(() {
                                 isSearchOpen = false;
@@ -1953,12 +2123,19 @@ class _TopNavOverlayState extends State<TopNavOverlay> {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(Icons.person_add, color: spaceAccent, size: 18),
+                            const Icon(
+                              Icons.person_add,
+                              color: spaceAccent,
+                              size: 18,
+                            ),
                             if (!isMobile) ...[
                               const SizedBox(width: 6),
                               const Text(
                                 'Log In',
-                                style: TextStyle(color: spaceTextPrimary, fontSize: 12.5),
+                                style: TextStyle(
+                                  color: spaceTextPrimary,
+                                  fontSize: 12.5,
+                                ),
                               ),
                             ],
                           ],
@@ -1985,7 +2162,10 @@ class _TopNavOverlayState extends State<TopNavOverlay> {
                       enabled: false,
                       child: Text(
                         'Signed in as ${state.sessionUserName}',
-                        style: const TextStyle(color: spaceAccent, fontSize: 12),
+                        style: const TextStyle(
+                          color: spaceAccent,
+                          fontSize: 12,
+                        ),
                       ),
                     ),
                     const PopupMenuDivider(),
@@ -2022,12 +2202,19 @@ class _TopNavOverlayState extends State<TopNavOverlay> {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(Icons.account_circle, color: spaceAccent, size: 20),
+                            const Icon(
+                              Icons.account_circle,
+                              color: spaceAccent,
+                              size: 20,
+                            ),
                             if (!isMobile) ...[
                               const SizedBox(width: 6),
                               Text(
                                 state.sessionUserName ?? '',
-                                style: const TextStyle(color: spaceTextPrimary, fontSize: 12),
+                                style: const TextStyle(
+                                  color: spaceTextPrimary,
+                                  fontSize: 12,
+                                ),
                               ),
                             ],
                           ],
@@ -2058,11 +2245,16 @@ class _TopNavOverlayState extends State<TopNavOverlay> {
                       return InkWell(
                         onTap: () => _pick(state, res),
                         child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 7.0),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12.0,
+                            vertical: 7.0,
+                          ),
                           child: Row(
                             children: [
                               Icon(
-                                res['kind'] == 'sector' ? Icons.travel_explore : Icons.star,
+                                res['kind'] == 'sector'
+                                    ? Icons.travel_explore
+                                    : Icons.star,
                                 color: spaceAccent,
                                 size: 15,
                               ),
@@ -2073,11 +2265,17 @@ class _TopNavOverlayState extends State<TopNavOverlay> {
                                   children: [
                                     Text(
                                       res['label'],
-                                      style: const TextStyle(color: spaceTextPrimary, fontSize: 12),
+                                      style: const TextStyle(
+                                        color: spaceTextPrimary,
+                                        fontSize: 12,
+                                      ),
                                     ),
                                     Text(
                                       res['sub'],
-                                      style: const TextStyle(color: spaceTextSecondary, fontSize: 10),
+                                      style: const TextStyle(
+                                        color: spaceTextSecondary,
+                                        fontSize: 10,
+                                      ),
                                     ),
                                   ],
                                 ),
