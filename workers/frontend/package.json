@@ -1,0 +1,15 @@
+{
+  "name": "perseids-workers-frontend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Cloudflare Worker that hosts the Perseids Flutter web frontend",
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "preview": "wrangler dev",
+    "build": "bash build.sh"
+  },
+  "devDependencies": {
+    "wrangler": "^3.0.0"
+  }
+}
+

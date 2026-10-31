@@ -11,4 +11,8 @@ services:
         sync: false          # set manually in Render dashboard
       - key: VALKEY_PREFIX
         value: spacemap
+      - key: ALLOWED_ORIGINS
+        sync: false          # optional: comma-separated list of allowed browser origins
+                             # e.g. https://perseids.workers.dev,https://example.com
+                             # Leave unset to allow all origins (fine when co-hosted on Render)
     healthCheckPath: /api/health

@@ -22,6 +22,9 @@ package main
 //   RENDER          any non-empty value → bind 0.0.0.0 (PaaS convention)
 //   HEARTBEAT_TIMEOUT duration before a silent user is marked offline (default: 60m)
 //   ADMIN_TOKEN     bearer token required for POST /api/reset; unset = disabled
+//   ALLOWED_ORIGINS comma-separated list of allowed browser origins, e.g.
+//                   "https://perseids.workers.dev,https://example.com"
+//                   Unset = wildcard (*) — safe when backend is not publicly reachable.
 
 import (
 	"context"
@@ -229,7 +232,7 @@ func main() {
 	// Static files are last; /api and /ws take precedence automatically.
 	mux.Handle("/", http.FileServer(http.Dir(staticDir)))
 
-	handler := corsMiddleware(noCacheMiddleware(mux))
+	handler := secureCORSMiddleware(noCacheMiddleware(mux))
 
 	// ---- HTTP server ----
 	addr := host + ":" + port

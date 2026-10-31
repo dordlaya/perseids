@@ -1,0 +1,10 @@
+name = "perseids"
+main = "src/index.js"
+compatibility_date = "2024-11-01"
+
+# Serve the Flutter web build as static assets.
+# Workers Assets handles SPA fallback (404 → index.html), correct MIME types
+# for Flutter's .wasm / .js / .br files, and global CDN caching automatically.
+[assets]
+directory = "../../frontend/build/web"
+

@@ -3,5 +3,9 @@
 /backend/backend.exe
 /frontend/build/
 
+# Cloudflare Workers
+/workers/frontend/node_modules/
+/workers/frontend/.wrangler/
+
 # Local game data
 /backend/data/roster.json

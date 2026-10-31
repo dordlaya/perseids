@@ -5,33 +5,42 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 import '../models/models.dart';
 
 class ApiClient {
-  // In production, Flutter web is served by the Go server itself, so
-  // Uri.base already points at the right host:port.
+  // URL resolution strategy (in priority order):
   //
-  // In development, `flutter run -d chrome` uses its own dev server on a
-  // random port, while Go listens on a fixed port (default 5173).
-  // Pass `--dart-define=BACKEND_PORT=5173` to override the port at compile
-  // time so the client can reach the backend.
+  // 1. BACKEND_URL dart-define (Cloudflare Workers / any cross-origin deploy):
+  //      flutter build web --release \
+  //        --dart-define=BACKEND_URL=https://your-backend.onrender.com
   //
-  // Example dev command:
-  //   flutter run -d chrome --dart-define=BACKEND_PORT=5173
+  // 2. BACKEND_PORT dart-define (local dev with flutter run):
+  //      flutter run -d chrome --dart-define=BACKEND_PORT=5173
+  //
+  // 3. Automatic same-origin fallback (Render/Docker: Go serves Flutter itself).
+  static const String _backendUrl =
+      String.fromEnvironment('BACKEND_URL', defaultValue: '');
   static const String _backendPort =
       String.fromEnvironment('BACKEND_PORT', defaultValue: '');
 
-  static String get _effectivePort {
-    if (_backendPort.isNotEmpty) return _backendPort;
-    return Uri.base.port.toString();
-  }
-
   static String get baseUrl {
+    if (_backendUrl.isNotEmpty) return '$_backendUrl/api';
     final origin = Uri.base;
-    return '${origin.scheme}://${origin.host}:$_effectivePort/api';
+    final port = _backendPort.isNotEmpty ? _backendPort : origin.port.toString();
+    return '${origin.scheme}://${origin.host}:$port/api';
   }
 
   static String get wsUrl {
+    if (_backendUrl.isNotEmpty) {
+      final uri = Uri.parse(_backendUrl);
+      final wsScheme = uri.scheme == 'https' ? 'wss' : 'ws';
+      // Omit port for standard HTTPS/HTTP ports so the URL stays clean.
+      final port = (uri.port == 443 || uri.port == 80 || uri.port == 0)
+          ? ''
+          : ':${uri.port}';
+      return '$wsScheme://${uri.host}$port/ws';
+    }
     final origin = Uri.base;
     final wsScheme = origin.scheme == 'https' ? 'wss' : 'ws';
-    return '$wsScheme://${origin.host}:$_effectivePort/ws';
+    final port = _backendPort.isNotEmpty ? _backendPort : origin.port.toString();
+    return '$wsScheme://${origin.host}:$port/ws';
   }
 
   WebSocketChannel? _channel;
