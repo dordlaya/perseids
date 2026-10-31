@@ -1770,34 +1770,45 @@ class ControlsOverlay extends StatelessWidget {
             ),
 
           if (me != null)
-            _btn(Icons.my_location, () {
+            _btn(Icons.home, () {
               if (game != null) {
                 game!.moveCameraTo(Vector2(me.x, me.y), zoom: 1.8);
                 state.showUserDetails(me.id);
               }
-            }),
+            }, tooltip: 'Go to your star'),
 
-          _btn(Icons.add, () => zoom(1.25)),
-          _btn(Icons.remove, () => zoom(1 / 1.25)),
+          _btn(Icons.add, () => zoom(1.25), tooltip: 'Zoom in'),
+          _btn(Icons.remove, () => zoom(1 / 1.25), tooltip: 'Zoom out'),
         ],
       ),
     );
   }
 
-  Widget _btn(IconData icon, VoidCallback onPressed) {
+  Widget _btn(
+    IconData icon,
+    VoidCallback onPressed, {
+    required String tooltip,
+  }) {
     return Padding(
       padding: const EdgeInsets.only(top: 8.0),
-      child: InkWell(
-        onTap: onPressed,
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(10),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
-            child: Container(
-              width: 44,
-              height: 44,
-              decoration: _glassDecoration(10),
-              child: Icon(icon, color: spaceAccent, size: 22),
+      child: Tooltip(
+        message: tooltip,
+        child: Semantics(
+          button: true,
+          label: tooltip,
+          child: InkWell(
+            onTap: onPressed,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+                child: Container(
+                  width: 44,
+                  height: 44,
+                  decoration: _glassDecoration(10),
+                  child: Icon(icon, color: spaceAccent, size: 22),
+                ),
+              ),
             ),
           ),
         ),

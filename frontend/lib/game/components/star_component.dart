@@ -85,6 +85,8 @@ class StarComponent extends Component with TapCallbacks, LongPressCallbacks {
   late double _y;
   // Accumulated time for animation effects (e.g. jam flicker).
   double _time = 0.0;
+  TextPainter? _ownStarLabel;
+  Color? _ownStarLabelColor;
 
   StarComponent(this.user, this.state)
       : _x = user.x,
@@ -194,6 +196,53 @@ class StarComponent extends Component with TapCallbacks, LongPressCallbacks {
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.5;
       canvas.drawCircle(Offset(_x, _y), user.r + 12, selectedPaint);
+    }
+
+    if (state.sessionUserId == user.id) {
+      final ownStarPaint = Paint()
+        ..color = effectiveGlow
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.5;
+      canvas.drawCircle(Offset(_x, _y), user.r + 16, ownStarPaint);
+
+      if (_ownStarLabel == null || _ownStarLabelColor != effectiveGlow) {
+        _ownStarLabelColor = effectiveGlow;
+        _ownStarLabel =
+            TextPainter(
+              text: TextSpan(
+                text: 'YOU',
+                style: TextStyle(
+                  color: effectiveGlow,
+                  fontSize: 9,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 0.6,
+                ),
+              ),
+              textDirection: TextDirection.ltr,
+            )..layout();
+      }
+      final label = _ownStarLabel!;
+      final tag = RRect.fromRectAndRadius(
+        Rect.fromLTWH(
+          _x - label.width / 2 - 5,
+          _y - user.r - 34,
+          label.width + 10,
+          label.height + 6,
+        ),
+        const Radius.circular(5),
+      );
+      canvas.drawRRect(tag, Paint()..color = const Color(0xE6050C1A));
+      canvas.drawRRect(
+        tag,
+        Paint()
+          ..color = effectiveGlow
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1,
+      );
+      label.paint(
+        canvas,
+        Offset(tag.left + 5, tag.top + 3),
+      );
     }
   }
 

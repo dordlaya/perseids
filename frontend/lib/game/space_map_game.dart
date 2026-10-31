@@ -53,6 +53,7 @@ class SpaceMapGame extends FlameGame with ScaleDetector, ScrollDetector {
   }
 
   void moveCameraTo(Vector2 position, {double? zoom}) {
+    camera.setBounds(null);
     _cameraTarget = position.clone();
     _cameraZoomTarget = zoom;
   }
