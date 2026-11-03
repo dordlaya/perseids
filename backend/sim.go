@@ -83,7 +83,7 @@ const (
 	jamRewardMs     = 60_000
 	jamReduction    = 0.25
 	jamDurationMs   = 60_000
-	jamCooldownMs   = 1_800_000
+	jamCooldownMs   = 360_000
 	moveGravityMs   = 30_000
 	moveCooldownMs  = 300_000
 	sectorCapacity  = 10
