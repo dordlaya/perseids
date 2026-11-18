@@ -44,11 +44,25 @@ class SpaceMapGame extends FlameGame with ScaleDetector, ScrollDetector {
       final position = camera.viewfinder.position;
       position.x += (target.x - position.x) * amount;
       position.y += (target.y - position.y) * amount;
+
+      // Exponential easing approaches its target asymptotically. Without an
+      // explicit snap, the camera can remain fractionally off the requested
+      // world coordinate, which is noticeable when focusing a small star on
+      // a narrow mobile viewport. Finish the move exactly once it is within
+      // sub-pixel world-space distance.
+      if ((target - position).length2 < 0.25) {
+        position.setFrom(target);
+        _cameraTarget = null;
+      }
     }
     final zoomTarget = _cameraZoomTarget;
     if (zoomTarget != null) {
       final amount = 1 - math.exp(-8 * dt.clamp(0.0, 0.1));
       camera.viewfinder.zoom += (zoomTarget - camera.viewfinder.zoom) * amount;
+      if ((zoomTarget - camera.viewfinder.zoom).abs() < 0.001) {
+        camera.viewfinder.zoom = zoomTarget;
+        _cameraZoomTarget = null;
+      }
     }
   }
 
