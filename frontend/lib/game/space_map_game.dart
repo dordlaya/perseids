@@ -67,9 +67,18 @@ class SpaceMapGame extends FlameGame with ScaleDetector, ScrollDetector {
   }
 
   void moveCameraTo(Vector2 position, {double? zoom}) {
+    // Set the camera's world-space center directly. This is used by the home
+    // control to return to the player's own star; an animated target can lag
+    // behind a star's latest snapshot and leave it off-center, especially on
+    // small mobile viewports. Clear any prior follow animation so it cannot
+    // overwrite this exact focus on the next game update.
+    _cameraTarget = null;
+    _cameraZoomTarget = null;
     camera.setBounds(null);
-    _cameraTarget = position.clone();
-    _cameraZoomTarget = zoom;
+    camera.viewfinder.position.setFrom(position);
+    if (zoom != null) {
+      camera.viewfinder.zoom = zoom.clamp(dynamicMinZoom, maxZoomLimit);
+    }
   }
 
   void stopCameraFollow() {
